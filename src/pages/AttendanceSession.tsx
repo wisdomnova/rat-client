@@ -171,6 +171,7 @@ export default function AttendanceSessionPage() {
       ])
       setSession(sessData)
       setRecords(recsData)
+      setError('') // Clear any previous transient errors
 
       // Load zone on first fetch
       if (!zone && sessData.zone_id) {
@@ -185,11 +186,14 @@ export default function AttendanceSessionPage() {
         setAutoRefresh(false)
       }
     } catch (err: any) {
-      setError(err.response?.data?.message || 'Failed to load session')
+      // Only show error if we have no data yet (initial load failure)
+      if (!session) {
+        setError(err.response?.data?.message || 'Failed to load session')
+      }
     } finally {
       setLoading(false)
     }
-  }, [sessionId, zone])
+  }, [sessionId, zone, session])
 
   useEffect(() => {
     fetchData()
@@ -198,7 +202,7 @@ export default function AttendanceSessionPage() {
   // Polling
   useEffect(() => {
     if (autoRefresh && session?.status !== 'completed') {
-      intervalRef.current = setInterval(fetchData, 2000) // Poll every 2s
+      intervalRef.current = setInterval(fetchData, 4000) // Poll every 4s
       return () => { if (intervalRef.current) clearInterval(intervalRef.current) }
     }
   }, [autoRefresh, session?.status, fetchData])
