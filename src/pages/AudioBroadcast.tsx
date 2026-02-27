@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { devicesAPI, groupsAPI, enrollmentsAPI } from '../api'
+import { getWsUrl } from '../api/ws'
 import { useAuthStore } from '../stores/authStore'
 import {
   Mic,
@@ -129,8 +130,7 @@ export default function AudioBroadcast() {
       setSkippedOffline(data.data.skipped_offline || 0)
 
       // 3. Connect admin WebSocket
-      const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
-      const wsUrl = `${wsProtocol}//${window.location.host}/ws/audio/broadcast/${bid}`
+      const wsUrl = getWsUrl(`/ws/audio/broadcast/${bid}`)
       const ws = new WebSocket(wsUrl)
       ws.binaryType = 'arraybuffer'
       wsRef.current = ws

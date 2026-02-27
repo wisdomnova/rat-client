@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { devicesAPI, trackingAPI } from '../api'
+import { getWsUrl } from '../api/ws'
 import { MapContainer, TileLayer, Marker, Polyline, Circle, Tooltip, useMap } from 'react-leaflet'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
@@ -139,8 +140,7 @@ export default function LiveTracking() {
       setStartTime(new Date())
 
       // Connect admin WebSocket
-      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
-      const wsUrl = `${protocol}//${window.location.host}/ws/tracking/admin/${session.session_id}`
+      const wsUrl = getWsUrl(`/ws/tracking/admin/${session.session_id}`)
 
       const ws = new WebSocket(wsUrl)
       wsRef.current = ws

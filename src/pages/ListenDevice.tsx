@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { devicesAPI } from '../api'
+import { getWsUrl } from '../api/ws'
 import { useAuthStore } from '../stores/authStore'
 import {
   ArrowLeft,
@@ -91,8 +92,7 @@ export default function ListenDevice() {
       nextPlayTimeRef.current = 0
 
       // 3. Connect admin WebSocket
-      const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
-      const wsUrl = `${wsProtocol}//${window.location.host}/ws/audio/listen/admin/${sid}`
+      const wsUrl = getWsUrl(`/ws/audio/listen/admin/${sid}`)
       const ws = new WebSocket(wsUrl)
       ws.binaryType = 'arraybuffer'
       wsRef.current = ws

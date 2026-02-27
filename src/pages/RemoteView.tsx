@@ -2,6 +2,7 @@ import { useState, useRef, useEffect, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation } from '@tanstack/react-query'
 import { devicesAPI, streamingAPI } from '../api'
+import { getWsUrl } from '../api/ws'
 import { useAuthStore } from '../stores/authStore'
 import { 
   ArrowLeft, 
@@ -103,8 +104,7 @@ export default function RemoteView() {
   })
   
   const connectWebSocket = (sid: string) => {
-    const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
-    const wsUrl = `${wsProtocol}//${window.location.host}/ws/viewer/${sid}`
+    const wsUrl = getWsUrl(`/ws/viewer/${sid}`)
     
     console.log('Connecting viewer WS to', wsUrl)
     const ws = new WebSocket(wsUrl)
