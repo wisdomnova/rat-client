@@ -7,12 +7,13 @@ export default defineConfig({
     port: 3000,
     proxy: {
       '/api': {
-        target: 'http://localhost:8080',
+        target: 'https://rat-backend-production.up.railway.app',
         changeOrigin: true,
       },
       '/ws': {
-        target: 'ws://localhost:8080',
+        target: 'wss://rat-backend-production.up.railway.app',
         ws: true,
+        changeOrigin: true,
       },
     },
   },
