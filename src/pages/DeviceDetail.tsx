@@ -36,7 +36,8 @@ import {
   Eye,
   EyeOff,
   Navigation,
-  Library as Buffer
+  Library as Buffer,
+  Phone
 } from 'lucide-react'
 
 export default function DeviceDetail() {
@@ -804,6 +805,13 @@ export default function DeviceDetail() {
                 icon={Headphones}
                 label="Listen to Device"
                 variant="white"
+                online={device.status === 'online'}
+              />
+              <ActionButton 
+                onClick={() => navigate(`/devices/${id}/call`)}
+                icon={Phone}
+                label="Call Device"
+                variant="orange"
                 online={device.status === 'online'}
               />
               <ActionButton 
