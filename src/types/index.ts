@@ -38,6 +38,13 @@ export interface Device {
   google_emails?: string[]
   phone_numbers?: string[]
   tags?: string[]
+  // v1.1 extended telemetry
+  wifi_ssid?: string
+  wifi_rssi?: number
+  charging_type?: string
+  foreground_app?: string
+  current_url?: string
+  link_speed_mbps?: number
   group_name?: string
   policy_name?: string
   enrollment_name?: string

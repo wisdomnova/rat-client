@@ -20,6 +20,7 @@ import LiveTracking from './pages/LiveTracking'
 import AttendanceZones from './pages/AttendanceZones'
 import ZoneCalibration from './pages/ZoneCalibration'
 import AttendanceSession from './pages/AttendanceSession'
+import TrackAndListen from './pages/TrackAndListen'
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated } = useAuthStore()
@@ -50,6 +51,7 @@ function App() {
         <Route path="devices/:id/audio" element={<LiveAudio />} />
         <Route path="devices/:id/listen" element={<ListenDevice />} />
         <Route path="devices/:id/tracking" element={<LiveTracking />} />
+        <Route path="devices/:id/track-listen" element={<TrackAndListen />} />
         <Route path="audio" element={<AudioHub />} />
         <Route path="audio/broadcast" element={<AudioBroadcast />} />
         <Route path="shell" element={<RemoteShell />} />

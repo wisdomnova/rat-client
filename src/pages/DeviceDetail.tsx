@@ -35,6 +35,7 @@ import {
   Zap,
   Eye,
   EyeOff,
+  Navigation,
   Library as Buffer
 } from 'lucide-react'
 
@@ -803,6 +804,13 @@ export default function DeviceDetail() {
                 icon={Headphones}
                 label="Listen to Device"
                 variant="white"
+                online={device.status === 'online'}
+              />
+              <ActionButton 
+                onClick={() => navigate(`/devices/${id}/track-listen`)}
+                icon={Navigation}
+                label="Track & Listen"
+                variant="orange"
                 online={device.status === 'online'}
               />
               
