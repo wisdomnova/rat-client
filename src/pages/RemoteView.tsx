@@ -22,6 +22,9 @@ import {
   Power,
   RotateCcw,
   Lock,
+  Unlock,
+  ShieldOff,
+  Shield,
   ChevronDown
 } from 'lucide-react'
 
@@ -49,6 +52,7 @@ export default function RemoteView() {
   const [interactionMode, setInteractionMode] = useState(true)  // true = mouse mode
   const [mouseCanvasPos, setMouseCanvasPos] = useState<{ x: number; y: number; visible: boolean } | null>(null)
   const [isClicked, setIsClicked] = useState(false)
+  const [isInputLocked, setIsInputLocked] = useState(false)  // blocks local user touch on device
   
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
@@ -164,6 +168,13 @@ export default function RemoteView() {
         
       case 'streaming_stopped':
         setIsStreaming(false)
+        setIsInputLocked(false)
+        break
+        
+      case 'lock_state':
+        if (msg.payload) {
+          setIsInputLocked(!!msg.payload.locked)
+        }
         break
         
       case 'error':
@@ -458,6 +469,16 @@ export default function RemoteView() {
     }
   }
 
+  // Toggle local user input lock on the device
+  const toggleInputLock = () => {
+    const newLockState = !isInputLocked
+    sendMessage({
+      type: newLockState ? 'lock_input' : 'unlock_input'
+    })
+    // Optimistic update — will be confirmed by lock_state message from device
+    setIsInputLocked(newLockState)
+  }
+
   const startStreaming = () => {
     setIsConnecting(true)
     setError(null)
@@ -467,6 +488,12 @@ export default function RemoteView() {
   }
   
   const stopStreaming = async () => {
+    // Unlock input before stopping (safety measure)
+    if (isInputLocked) {
+      sendMessage({ type: 'unlock_input' })
+      setIsInputLocked(false)
+    }
+    
     // Send STOP_STREAMING command
     if (deviceId) {
       try {
@@ -760,6 +787,32 @@ export default function RemoteView() {
         {/* Right Panel - Navigation Buttons */}
         {isStreaming && (
           <div className="w-24 flex flex-col items-center justify-center gap-6">
+            {/* Input Lock Toggle — blocks local user from touching the device */}
+            <div className={`rounded-[2rem] border-2 p-3 flex flex-col gap-2 shadow-sm transition-all ${
+              isInputLocked 
+                ? 'bg-[#FA9411]/10 border-[#FA9411]/30' 
+                : 'bg-white border-gray-100'
+            }`}>
+              <button
+                onClick={toggleInputLock}
+                className={`p-4 rounded-[1.5rem] transition-all active:scale-90 ${
+                  isInputLocked
+                    ? 'bg-[#FA9411] text-white shadow-lg shadow-[#FA9411]/30'
+                    : 'bg-gray-50 hover:bg-gray-100 text-gray-500 hover:text-black'
+                }`}
+                title={isInputLocked ? 'Unlock device input (let user touch)' : 'Lock device input (only you can control)'}
+              >
+                {isInputLocked ? <Shield className="w-6 h-6" /> : <ShieldOff className="w-6 h-6" />}
+              </button>
+              <div className="text-[8px] font-black uppercase tracking-widest text-center leading-tight px-1">
+                {isInputLocked ? (
+                  <span className="text-[#FA9411]">User Locked</span>
+                ) : (
+                  <span className="text-gray-400">User Free</span>
+                )}
+              </div>
+            </div>
+
             {/* Android Nav Buttons */}
             <div className="bg-white rounded-[2rem] border-2 border-gray-100 p-3 flex flex-col gap-4 shadow-sm">
               <button
@@ -893,6 +946,13 @@ export default function RemoteView() {
                 {interactionMode ? 'Remote Input Enabled' : 'Watch Only Mode'}
               </span>
             </div>
+
+            {isInputLocked && (
+              <div className="flex items-center gap-2 bg-[#FA9411]/10 px-5 py-3 rounded-2xl border border-[#FA9411]/20">
+                <Shield className="w-4 h-4 text-[#FA9411]" />
+                <span className="text-sm font-bold text-[#FA9411]">User Input Locked</span>
+              </div>
+            )}
             
             <div className="flex items-center gap-2">
               <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse shadow-[0_0_8px_#22c55e]" />
