@@ -1,7 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Package, Upload, Trash2, Send, X, CheckCircle, AlertCircle, Loader2, Users, Globe, Tablet } from 'lucide-react'
-import { appsAPI, groupsAPI, devicesAPI } from '../api'
-import { useState, useRef } from 'react'
+import { Package, Upload, Trash2, Send, X, CheckCircle, AlertCircle, Loader2, Users, Globe, Tablet, Key, Search } from 'lucide-react'
+import { appsAPI, groupsAPI, devicesAPI, enrollmentsAPI } from '../api'
+import { useState, useRef, useMemo } from 'react'
 
 interface AppEntry {
   id: string
@@ -31,9 +31,11 @@ export default function AppRepository() {
     is_mandatory: false,
   })
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
-  const [deployMode, setDeployMode] = useState<'all' | 'groups' | 'devices'>('all')
+  const [deployMode, setDeployMode] = useState<'all' | 'groups' | 'devices' | 'enrollments'>('all')
   const [selectedGroups, setSelectedGroups] = useState<string[]>([])
   const [selectedDevices, setSelectedDevices] = useState<string[]>([])
+  const [selectedEnrollments, setSelectedEnrollments] = useState<string[]>([])
+  const [searchQuery, setSearchQuery] = useState('')
 
   const { data: apps, isLoading } = useQuery<AppEntry[]>({
     queryKey: ['apps'],
@@ -53,6 +55,13 @@ export default function AppRepository() {
   const { data: devicesData } = useQuery({
     queryKey: ['devices-for-deploy'],
     queryFn: () => devicesAPI.list({ page_size: 100 }),
+    enabled: showDeploy !== null,
+    staleTime: 5 * 60 * 1000,
+  })
+
+  const { data: enrollments } = useQuery({
+    queryKey: ['enrollments'],
+    queryFn: () => enrollmentsAPI.list(),
     enabled: showDeploy !== null,
     staleTime: 5 * 60 * 1000,
   })
@@ -87,6 +96,8 @@ export default function AppRepository() {
         targets.group_ids = selectedGroups
       } else if (deployMode === 'devices') {
         targets.device_ids = selectedDevices
+      } else if (deployMode === 'enrollments') {
+        targets.enrollment_tokens = selectedEnrollments
       }
       return appsAPI.deploy(appId, targets)
     },
@@ -94,6 +105,8 @@ export default function AppRepository() {
       setShowDeploy(null)
       setSelectedGroups([])
       setSelectedDevices([])
+      setSelectedEnrollments([])
+      setSearchQuery('')
       alert(`Deployment queued for ${data?.targets || '?'} device(s)`)
     },
   })
@@ -120,6 +133,33 @@ export default function AppRepository() {
   )
 
   const devices = devicesData?.devices || []
+
+  const filteredGroups = useMemo(() => {
+    const list = (groups as any)?.groups || []
+    if (!searchQuery) return list
+    const q = searchQuery.toLowerCase()
+    return list.filter((g: any) => g.name?.toLowerCase().includes(q))
+  }, [groups, searchQuery])
+
+  const filteredDevices = useMemo(() => {
+    if (!searchQuery) return devices
+    const q = searchQuery.toLowerCase()
+    return devices.filter((d: any) =>
+      (d.name || '').toLowerCase().includes(q) ||
+      (d.model || '').toLowerCase().includes(q) ||
+      (d.device_id || '').toLowerCase().includes(q)
+    )
+  }, [devices, searchQuery])
+
+  const filteredEnrollments = useMemo(() => {
+    const list = enrollments || []
+    if (!searchQuery) return list
+    const q = searchQuery.toLowerCase()
+    return list.filter((e: any) =>
+      (e.name || '').toLowerCase().includes(q) ||
+      (e.token || '').toLowerCase().includes(q)
+    )
+  }, [enrollments, searchQuery])
 
   return (
     <div className="animate-fade-in">
@@ -300,10 +340,10 @@ export default function AppRepository() {
           {/* Deploy Modal */}
           {showDeploy && (
             <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-              <div className="bg-white rounded-[2.5rem] p-8 w-full max-w-xl shadow-2xl">
+              <div className="bg-white rounded-[2.5rem] p-8 w-full max-w-xl shadow-2xl max-h-[90vh] overflow-y-auto">
                 <div className="flex justify-between items-center mb-8">
                   <h2 className="text-2xl font-bold">Send App to Devices</h2>
-                  <button onClick={() => setShowDeploy(null)} className="bg-gray-100 p-2 rounded-full text-gray-400 hover:text-gray-600">
+                  <button onClick={() => { setShowDeploy(null); setSearchQuery('') }} className="bg-gray-100 p-2 rounded-full text-gray-400 hover:text-gray-600">
                     <X className="w-6 h-6" />
                   </button>
                 </div>
@@ -312,51 +352,116 @@ export default function AppRepository() {
                   Sending: <span className="font-bold text-gray-900">{apps?.find(a => a.id === showDeploy)?.app_name}</span>
                 </p>
 
-                <div className="space-y-4 mb-8">
+                <div className="grid grid-cols-2 gap-3 mb-6">
                   <button
-                    onClick={() => setDeployMode('all')}
-                    className={`w-full flex items-center space-x-4 p-5 rounded-[2rem] border-2 transition-all ${deployMode === 'all' ? 'border-[#FA9411] bg-orange-50/50' : 'border-gray-100 hover:border-gray-300'}`}
+                    onClick={() => { setDeployMode('all'); setSearchQuery('') }}
+                    className={`flex items-center space-x-3 p-4 rounded-[1.5rem] border-2 transition-all ${deployMode === 'all' ? 'border-[#FA9411] bg-orange-50/50' : 'border-gray-100 hover:border-gray-300'}`}
                   >
-                    <div className={`p-3 rounded-2xl ${deployMode === 'all' ? 'bg-[#FA9411] text-white' : 'bg-gray-100 text-gray-500'}`}>
-                      <Globe className="w-6 h-6" />
+                    <div className={`p-2 rounded-xl ${deployMode === 'all' ? 'bg-[#FA9411] text-white' : 'bg-gray-100 text-gray-500'}`}>
+                      <Globe className="w-5 h-5" />
                     </div>
                     <div className="text-left">
-                      <span className="block text-base font-bold">All Devices</span>
-                      <span className="block text-sm text-gray-400">Send this app to every device</span>
+                      <span className="block text-sm font-bold">All Devices</span>
+                      <span className="block text-[11px] text-gray-400">Every device</span>
                     </div>
                   </button>
 
                   <button
-                    onClick={() => setDeployMode('groups')}
-                    className={`w-full flex items-center space-x-4 p-5 rounded-[2rem] border-2 transition-all ${deployMode === 'groups' ? 'border-[#FA9411] bg-orange-50/50' : 'border-gray-100 hover:border-gray-300'}`}
+                    onClick={() => { setDeployMode('enrollments'); setSearchQuery('') }}
+                    className={`flex items-center space-x-3 p-4 rounded-[1.5rem] border-2 transition-all ${deployMode === 'enrollments' ? 'border-[#FA9411] bg-orange-50/50' : 'border-gray-100 hover:border-gray-300'}`}
                   >
-                    <div className={`p-3 rounded-2xl ${deployMode === 'groups' ? 'bg-[#FA9411] text-white' : 'bg-gray-100 text-gray-500'}`}>
-                      <Users className="w-6 h-6" />
+                    <div className={`p-2 rounded-xl ${deployMode === 'enrollments' ? 'bg-[#FA9411] text-white' : 'bg-gray-100 text-gray-500'}`}>
+                      <Key className="w-5 h-5" />
                     </div>
                     <div className="text-left">
-                      <span className="block text-base font-bold">Groups</span>
-                      <span className="block text-sm text-gray-400">Choose specific device groups</span>
+                      <span className="block text-sm font-bold">Enrollments</span>
+                      <span className="block text-[11px] text-gray-400">By enrollment token</span>
                     </div>
                   </button>
 
                   <button
-                    onClick={() => setDeployMode('devices')}
-                    className={`w-full flex items-center space-x-4 p-5 rounded-[2rem] border-2 transition-all ${deployMode === 'devices' ? 'border-[#FA9411] bg-orange-50/50' : 'border-gray-100 hover:border-gray-300'}`}
+                    onClick={() => { setDeployMode('groups'); setSearchQuery('') }}
+                    className={`flex items-center space-x-3 p-4 rounded-[1.5rem] border-2 transition-all ${deployMode === 'groups' ? 'border-[#FA9411] bg-orange-50/50' : 'border-gray-100 hover:border-gray-300'}`}
                   >
-                    <div className={`p-3 rounded-2xl ${deployMode === 'devices' ? 'bg-[#FA9411] text-white' : 'bg-gray-100 text-gray-500'}`}>
-                      <Tablet className="w-6 h-6" />
+                    <div className={`p-2 rounded-xl ${deployMode === 'groups' ? 'bg-[#FA9411] text-white' : 'bg-gray-100 text-gray-500'}`}>
+                      <Users className="w-5 h-5" />
                     </div>
                     <div className="text-left">
-                      <span className="block text-base font-bold">Specific Devices</span>
-                      <span className="block text-sm text-gray-400">Choose specific devices to receive the app</span>
+                      <span className="block text-sm font-bold">Groups</span>
+                      <span className="block text-[11px] text-gray-400">Device groups</span>
+                    </div>
+                  </button>
+
+                  <button
+                    onClick={() => { setDeployMode('devices'); setSearchQuery('') }}
+                    className={`flex items-center space-x-3 p-4 rounded-[1.5rem] border-2 transition-all ${deployMode === 'devices' ? 'border-[#FA9411] bg-orange-50/50' : 'border-gray-100 hover:border-gray-300'}`}
+                  >
+                    <div className={`p-2 rounded-xl ${deployMode === 'devices' ? 'bg-[#FA9411] text-white' : 'bg-gray-100 text-gray-500'}`}>
+                      <Tablet className="w-5 h-5" />
+                    </div>
+                    <div className="text-left">
+                      <span className="block text-sm font-bold">Devices</span>
+                      <span className="block text-[11px] text-gray-400">Specific devices</span>
                     </div>
                   </button>
                 </div>
 
+                {/* Search Bar — shown for lists */}
+                {deployMode !== 'all' && (
+                  <div className="relative mb-4">
+                    <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                    <input
+                      type="text"
+                      placeholder={`Search ${deployMode}...`}
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      className="w-full pl-10 pr-4 py-3 border-2 border-gray-100 focus:border-[#FA9411] outline-none rounded-2xl text-sm transition-all"
+                    />
+                  </div>
+                )}
+
+                {/* Enrollment list */}
+                {deployMode === 'enrollments' && (
+                  <div className="mb-6 max-h-60 overflow-y-auto border-2 border-gray-100 rounded-[2rem] p-4 space-y-1">
+                    {filteredEnrollments.length > 0 ? (
+                      filteredEnrollments.map((e: any) => (
+                        <label key={e.id} className="flex items-center justify-between p-3 rounded-2xl hover:bg-orange-50 cursor-pointer transition-colors">
+                          <div className="flex items-center space-x-3">
+                            <input
+                              type="checkbox"
+                              checked={selectedEnrollments.includes(e.token)}
+                              onChange={(ev) => {
+                                if (ev.target.checked) setSelectedEnrollments(prev => [...prev, e.token])
+                                else setSelectedEnrollments(prev => prev.filter(t => t !== e.token))
+                              }}
+                              className="w-5 h-5 rounded text-[#FA9411] focus:ring-[#FA9411]"
+                            />
+                            <div>
+                              <span className="block text-sm font-bold text-gray-900">{e.name || 'Unnamed Token'}</span>
+                              <span className="block text-[11px] text-gray-400 font-mono">{e.token.slice(0, 12)}...</span>
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            <span className={`text-[10px] uppercase font-bold px-2 py-1 rounded-full ${e.is_active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
+                              {e.is_active ? 'Active' : 'Inactive'}
+                            </span>
+                            <span className="block text-[10px] text-gray-400 mt-1">{e.current_uses} device{e.current_uses !== 1 ? 's' : ''}</span>
+                          </div>
+                        </label>
+                      ))
+                    ) : (
+                      <p className="text-sm text-gray-400 text-center py-4">
+                        {searchQuery ? 'No matching enrollments' : 'No enrollment tokens available'}
+                      </p>
+                    )}
+                  </div>
+                )}
+
+                {/* Groups list */}
                 {deployMode === 'groups' && (
                   <div className="mb-6 max-h-60 overflow-y-auto border-2 border-gray-100 rounded-[2rem] p-4 space-y-1">
-                    {(groups as any)?.groups?.length > 0 ? (
-                      (groups as any).groups.map((g: any) => (
+                    {filteredGroups.length > 0 ? (
+                      filteredGroups.map((g: any) => (
                         <label key={g.id} className="flex items-center space-x-3 p-3 rounded-2xl hover:bg-orange-50 cursor-pointer transition-colors">
                           <input
                             type="checkbox"
@@ -371,15 +476,18 @@ export default function AppRepository() {
                         </label>
                       ))
                     ) : (
-                      <p className="text-sm text-gray-400 text-center py-4">No groups available</p>
+                      <p className="text-sm text-gray-400 text-center py-4">
+                        {searchQuery ? 'No matching groups' : 'No groups available'}
+                      </p>
                     )}
                   </div>
                 )}
 
+                {/* Devices list */}
                 {deployMode === 'devices' && (
                   <div className="mb-6 max-h-60 overflow-y-auto border-2 border-gray-100 rounded-[2rem] p-4 space-y-1">
-                    {devices.length > 0 ? (
-                      devices.map((d: any) => (
+                    {filteredDevices.length > 0 ? (
+                      filteredDevices.map((d: any) => (
                         <label key={d.id} className="flex items-center justify-between p-3 rounded-2xl hover:bg-orange-50 cursor-pointer transition-colors">
                           <div className="flex items-center space-x-3">
                             <input
@@ -399,14 +507,16 @@ export default function AppRepository() {
                         </label>
                       ))
                     ) : (
-                      <p className="text-sm text-gray-400 text-center py-4">No devices available</p>
+                      <p className="text-sm text-gray-400 text-center py-4">
+                        {searchQuery ? 'No matching devices' : 'No devices available'}
+                      </p>
                     )}
                   </div>
                 )}
 
                 <div className="flex space-x-3">
                   <button
-                    onClick={() => setShowDeploy(null)}
+                    onClick={() => { setShowDeploy(null); setSearchQuery('') }}
                     className="flex-1 py-4 border-2 border-gray-100 rounded-[2rem] text-sm font-bold hover:bg-gray-50 transition-all"
                   >
                     Cancel
@@ -416,7 +526,8 @@ export default function AppRepository() {
                     disabled={
                       deployMutation.isPending ||
                       (deployMode === 'groups' && selectedGroups.length === 0) ||
-                      (deployMode === 'devices' && selectedDevices.length === 0)
+                      (deployMode === 'devices' && selectedDevices.length === 0) ||
+                      (deployMode === 'enrollments' && selectedEnrollments.length === 0)
                     }
                     className="flex-1 py-4 bg-[#FA9411] text-white rounded-[2rem] text-sm font-bold hover:shadow-lg hover:brightness-105 transition-all disabled:opacity-40 flex items-center justify-center space-x-2"
                   >
