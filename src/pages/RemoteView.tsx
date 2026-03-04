@@ -46,7 +46,6 @@ export default function RemoteView() {
   const [dimensions, setDimensions] = useState({ width: 0, height: 0 })
   const [sessionId, setSessionId] = useState<string | null>(null)
   const [fps, setFps] = useState(0)
-  const [_frameCount, setFrameCount] = useState(0)
   const [latency, setLatency] = useState(0)
   const [interactionMode, setInteractionMode] = useState(true)  // true = mouse mode
   const [mouseCanvasPos, setMouseCanvasPos] = useState<{ x: number; y: number; visible: boolean } | null>(null)
@@ -60,6 +59,8 @@ export default function RemoteView() {
   const fpsCountRef = useRef(0)
   const lastFpsTimeRef = useRef(Date.now())
   const lastFrameTimeRef = useRef(Date.now())
+  const isDecodingRef = useRef(false)
+  const pendingFrameRef = useRef<ArrayBuffer | null>(null)
   const isDraggingRef = useRef(false)
   const dragStartRef = useRef({ x: 0, y: 0 })
   const dragStartTimeRef = useRef(0)
@@ -266,45 +267,61 @@ export default function RemoteView() {
     }
   }, [clearTimers])
   
-  // Render JPEG frame on canvas
+  // Render JPEG frame on canvas — uses createImageBitmap for off-thread
+  // decoding and drops frames when the previous decode hasn't finished yet
+  // so latency stays bounded.
   const renderFrame = useCallback((data: ArrayBuffer) => {
     const canvas = canvasRef.current
     if (!canvas) return
-    
     const ctx = canvas.getContext('2d')
     if (!ctx) return
-    
-    const blob = new Blob([data], { type: 'image/jpeg' })
-    const url = URL.createObjectURL(blob)
-    const img = new Image()
-    
-    img.onload = () => {
-      // Update canvas size if needed
-      if (canvas.width !== img.width || canvas.height !== img.height) {
-        canvas.width = img.width
-        canvas.height = img.height
-        setDimensions({ width: img.width, height: img.height })
-      }
-      
-      ctx.drawImage(img, 0, 0)
-      URL.revokeObjectURL(url)
-      
-      // FPS counter
-      fpsCountRef.current++
-      setFrameCount(prev => prev + 1)
-      
-      const now = Date.now()
-      setLatency(now - lastFrameTimeRef.current)
-      lastFrameTimeRef.current = now
-      
-      if (now - lastFpsTimeRef.current >= 1000) {
-        setFps(fpsCountRef.current)
-        fpsCountRef.current = 0
-        lastFpsTimeRef.current = now
-      }
+
+    // If already decoding, stash this frame — only the latest matters
+    if (isDecodingRef.current) {
+      pendingFrameRef.current = data
+      return
     }
-    
-    img.src = url
+
+    const decodeAndDraw = (buf: ArrayBuffer) => {
+      isDecodingRef.current = true
+      const blob = new Blob([buf], { type: 'image/jpeg' })
+
+      createImageBitmap(blob).then((bmp) => {
+        // Resize canvas if device resolution changed
+        if (canvas.width !== bmp.width || canvas.height !== bmp.height) {
+          canvas.width = bmp.width
+          canvas.height = bmp.height
+          setDimensions({ width: bmp.width, height: bmp.height })
+        }
+
+        ctx.drawImage(bmp, 0, 0)
+        bmp.close()
+
+        // FPS counter
+        fpsCountRef.current++
+        const now = Date.now()
+        setLatency(now - lastFrameTimeRef.current)
+        lastFrameTimeRef.current = now
+        if (now - lastFpsTimeRef.current >= 1000) {
+          setFps(fpsCountRef.current)
+          fpsCountRef.current = 0
+          lastFpsTimeRef.current = now
+        }
+
+        isDecodingRef.current = false
+
+        // If a newer frame arrived while we were decoding, draw it now
+        const pending = pendingFrameRef.current
+        if (pending) {
+          pendingFrameRef.current = null
+          decodeAndDraw(pending)
+        }
+      }).catch(() => {
+        isDecodingRef.current = false
+      })
+    }
+
+    decodeAndDraw(data)
   }, [])
   
   // Send JSON message to backend (relay to device)
@@ -564,7 +581,6 @@ export default function RemoteView() {
   const startStreaming = () => {
     setIsConnecting(true)
     setError(null)
-    setFrameCount(0)
     setFps(0)
     isStreamingRef.current = false
     retryCountRef.current = 0

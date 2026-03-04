@@ -87,8 +87,9 @@ export default function DeviceCall() {
   useEffect(() => { isInCallRef.current = isInCall }, [isInCall])
   useEffect(() => { isMicMutedRef.current = isMicMuted }, [isMicMuted])
   useEffect(() => { isSpeakerMutedRef.current = isSpeakerMuted }, [isSpeakerMuted])
-  useEffect(() => { listenReadyRef.current = listenReady }, [listenReady])
-  useEffect(() => { speakReadyRef.current = speakReady }, [speakReady])
+  // NOTE: listenReadyRef and speakReadyRef are set SYNCHRONOUSLY in signal
+  // handlers (handleListenSignal / handleSpeakSignal) to prevent a race where
+  // the 12s retry timer fires before a React state→useEffect ref update.
 
   useEffect(() => {
     return () => { endCall() }
@@ -181,7 +182,7 @@ export default function DeviceCall() {
           }).catch(err => console.error('Failed to send START_LISTEN:', err))
         }
         sendListenCmd()
-        listenRetryTimerRef.current = setInterval(sendListenCmd, 6000)
+        listenRetryTimerRef.current = setInterval(sendListenCmd, 12000)
       }
 
       listenWs.onmessage = (event) => {
@@ -213,7 +214,7 @@ export default function DeviceCall() {
           }).catch(err => console.error('Failed to send START_AUDIO:', err))
         }
         sendSpeakCmd()
-        speakRetryTimerRef.current = setInterval(sendSpeakCmd, 6000)
+        speakRetryTimerRef.current = setInterval(sendSpeakCmd, 12000)
       }
 
       speakWs.onmessage = (event) => {
@@ -253,6 +254,7 @@ export default function DeviceCall() {
       case 'session_info':
         break
       case 'device_ready':
+        listenReadyRef.current = true
         if (listenRetryTimerRef.current) { clearInterval(listenRetryTimerRef.current); listenRetryTimerRef.current = null }
         setConnectStatus(speakReadyRef.current ? '' : 'Listen ready, waiting for speak...')
         setListenReady(true)
@@ -309,6 +311,7 @@ export default function DeviceCall() {
       case 'session_info':
         break
       case 'device_ready':
+        speakReadyRef.current = true
         if (speakRetryTimerRef.current) { clearInterval(speakRetryTimerRef.current); speakRetryTimerRef.current = null }
         setConnectStatus(listenReadyRef.current ? '' : 'Speak ready, waiting for listen...')
         setSpeakReady(true)
