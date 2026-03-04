@@ -37,6 +37,7 @@ export interface Device {
   longitude?: number
   google_emails?: string[]
   phone_numbers?: string[]
+  issam_id?: string
   tags?: string[]
   // v1.1 extended telemetry
   wifi_ssid?: string

@@ -37,7 +37,8 @@ import {
   EyeOff,
   Navigation,
   Library as Buffer,
-  Phone
+  Phone,
+  FileSearch
 } from 'lucide-react'
 
 export default function DeviceDetail() {
@@ -61,6 +62,7 @@ export default function DeviceDetail() {
   const [showPasswordModal, setShowPasswordModal] = useState(false)
   const [newPassword, setNewPassword] = useState('')
   const [accountsLoading, setAccountsLoading] = useState(false)
+  const [issamLoading, setIssamLoading] = useState(false)
   const [accountsResult, setAccountsResult] = useState<{
     google_emails: string[]
     phone_numbers: string[]
@@ -125,6 +127,19 @@ export default function DeviceDetail() {
     onError: (error: any) => {
       setAccountsLoading(false)
       setAccountsError(error.response?.data?.error?.message || error.message || 'Failed to send command')
+    },
+  })
+
+  const issamMutation = useMutation({
+    mutationFn: () => {
+      setIssamLoading(true)
+      return commandsAPI.extractIssam(id!)
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['commands', id] })
+    },
+    onError: () => {
+      setIssamLoading(false)
     },
   })
 
@@ -263,6 +278,19 @@ export default function DeviceDetail() {
         if (failedAccounts) {
           setAccountsLoading(false)
           setAccountsError(failedAccounts.error_message || 'Command failed or timed out')
+        }
+      }
+
+      // Handle EXTRACT_ISSAM response
+      if (issamLoading) {
+        const issamCmd = commands.find(c => c.command_type === 'EXTRACT_ISSAM' && c.status === 'completed' && c.result?.issam_id !== undefined)
+        if (issamCmd) {
+          setIssamLoading(false)
+          queryClient.invalidateQueries({ queryKey: ['device', id] })
+        }
+        const failedIssam = commands.find(c => c.command_type === 'EXTRACT_ISSAM' && (c.status === 'failed' || c.status === 'timeout'))
+        if (failedIssam) {
+          setIssamLoading(false)
         }
       }
     }
@@ -447,6 +475,7 @@ export default function DeviceDetail() {
                   <DetailItem label="Enrollment Link" value={device.enrollment_name || 'Direct Enrollment'} />
                   <DetailItem label="Enrollment Date" value={device.enrolled_at ? new Date(device.enrolled_at).toLocaleString() : (device.created_at ? new Date(device.created_at).toLocaleString() : 'N/A')} />
                   <DetailItem label="Last Communication" value={device.last_seen ? new Date(device.last_seen).toLocaleString() : 'Never'} />
+                  <DetailItem label="ISSAM ID" value={device.issam_id || (issamLoading ? 'Extracting...' : 'Not extracted')} isMono />
                 </div>
               </div>
 
@@ -853,6 +882,13 @@ export default function DeviceDetail() {
                 icon={Mail}
                 label="Extract Accounts"
                 loading={accountsLoading}
+                online={device.status === 'online'}
+              />
+              <ActionButton 
+                onClick={() => issamMutation.mutate()}
+                icon={FileSearch}
+                label="Extract ISSAM ID"
+                loading={issamLoading}
                 online={device.status === 'online'}
               />
               <ActionButton 

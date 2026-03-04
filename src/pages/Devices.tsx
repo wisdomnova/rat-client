@@ -17,7 +17,8 @@ import {
   X,
   Loader2,
   EyeOff,
-  Eye
+  Eye,
+  FileSearch
 } from 'lucide-react'
 
 const getTimeAgo = (date: string | null): string => {
@@ -354,6 +355,17 @@ export default function Devices() {
             >
               <Eye className="w-5 h-5 mr-2" />
               Show App
+            </button>
+
+            <div className="w-px h-6 bg-white/20" />
+
+            <button 
+              onClick={() => bulkMutation.mutate({ type: 'EXTRACT_ISSAM', deviceIds: selectedIds })}
+              disabled={bulkMutation.isPending}
+              className="flex items-center hover:scale-105 transition-transform text-sm font-bold disabled:opacity-50"
+            >
+              <FileSearch className="w-5 h-5 mr-2" />
+              Extract ISSAM
             </button>
           </div>
 
