@@ -586,7 +586,7 @@ export default function TrackAndListen() {
               <MiniStat
                 icon={<Globe className="w-4 h-4 text-indigo-500" />}
                 label="Current URL"
-                value={device?.current_url ? new URL(device.current_url).hostname : '—'}
+                value={(() => { try { return device?.current_url ? new URL(device.current_url).hostname : '—' } catch { return device?.current_url || '—' } })()}
               />
               <MiniStat
                 icon={device?.wifi_ssid ? <Wifi className="w-4 h-4 text-green-500" /> : <WifiOff className="w-4 h-4 text-gray-300" />}
