@@ -52,6 +52,7 @@ export default function RemoteView() {
   const [mouseCanvasPos, setMouseCanvasPos] = useState<{ x: number; y: number; visible: boolean } | null>(null)
   const [isClicked, setIsClicked] = useState(false)
   const [isInputLocked, setIsInputLocked] = useState(false)  // blocks local user touch on device
+  const [connectStatus, setConnectStatus] = useState('')      // progress text during connection
   
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
@@ -62,6 +63,11 @@ export default function RemoteView() {
   const isDraggingRef = useRef(false)
   const dragStartRef = useRef({ x: 0, y: 0 })
   const dragStartTimeRef = useRef(0)
+  const retryTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const timeoutTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const retryCountRef = useRef(0)
+  const isStreamingRef = useRef(false)
+  const sessionIdRef = useRef<string | null>(null)
   
   // Overscan size in CSS pixels - allows edge swipes like AnyDesk
   const OVERSCAN = 32
@@ -73,40 +79,96 @@ export default function RemoteView() {
     staleTime: 5 * 60 * 1000,
   })
   
-  // Create streaming session + send START_STREAMING command
+  // Helper: send START_STREAMING command to device
+  const sendStartStreamingCommand = useCallback(async (sid: string) => {
+    const token = useAuthStore.getState().accessToken || ''
+    await fetch(`/api/v1/devices/${deviceId}/commands`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify({
+        command_type: 'START_STREAMING',
+        payload: { session_id: sid, quality }
+      })
+    })
+  }, [deviceId, quality])
+
+  // Clear all retry/timeout timers
+  const clearTimers = useCallback(() => {
+    if (retryTimerRef.current) { clearInterval(retryTimerRef.current); retryTimerRef.current = null }
+    if (timeoutTimerRef.current) { clearTimeout(timeoutTimerRef.current); timeoutTimerRef.current = null }
+  }, [])
+
+  // Create streaming session + send START_STREAMING command with auto-retry
   const createSessionMutation = useMutation({
     mutationFn: async () => {
+      setConnectStatus('Creating session...')
+      
       // 1. Create session on backend
       const session = await streamingAPI.createSession(deviceId!, quality)
       const sid = session.session_id
       setSessionId(sid)
+      sessionIdRef.current = sid
+      retryCountRef.current = 0
+      
+      setConnectStatus('Connecting to relay...')
       
       // 2. Connect WebSocket immediately
       connectWebSocket(sid)
       
-      // 3. Send START_STREAMING command to device (it will connect to WS)
-      const token = useAuthStore.getState().accessToken || ''
-      await fetch(`/api/v1/devices/${deviceId}/commands`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({
-          command_type: 'START_STREAMING',
-          payload: { session_id: sid, quality }
-        })
-      })
+      // 3. Send START_STREAMING command to device
+      setConnectStatus('Sending command to device...')
+      await sendStartStreamingCommand(sid)
+      
+      // 4. Start retry loop — re-send the command every 6s until device connects.
+      // The device polls for commands every 5s so this ensures at least one
+      // command is always waiting in the queue.
+      retryTimerRef.current = setInterval(async () => {
+        if (isStreamingRef.current) {
+          // Device connected — stop retrying
+          clearTimers()
+          return
+        }
+        retryCountRef.current++
+        setConnectStatus(`Waiting for device... (attempt ${retryCountRef.current + 1})`)
+        try {
+          await sendStartStreamingCommand(sid)
+          console.log(`Retry #${retryCountRef.current}: re-sent START_STREAMING for ${sid}`)
+        } catch (e) {
+          console.warn('Retry command send failed:', e)
+        }
+      }, 6000)
+
+      // 5. Hard timeout — if no streaming_started after 45s, give up
+      timeoutTimerRef.current = setTimeout(() => {
+        if (!isStreamingRef.current) {
+          clearTimers()
+          setError('Connection timed out. Device may be offline or unreachable. Try again.')
+          setIsConnecting(false)
+          // Clean up WebSocket
+          wsRef.current?.close()
+          wsRef.current = null
+        }
+      }, 45000)
       
       return sid
     },
     onError: (err: any) => {
+      clearTimers()
       setError(err.message || 'Failed to create session')
       setIsConnecting(false)
     }
   })
   
-  const connectWebSocket = (sid: string) => {
+  const connectWebSocket = useCallback((sid: string) => {
+    // Clean up existing connection
+    if (wsRef.current) {
+      wsRef.current.onclose = null
+      wsRef.current.close()
+    }
+    
     const wsUrl = getWsUrl(`/ws/viewer/${sid}`)
     
     console.log('Connecting viewer WS to', wsUrl)
@@ -116,6 +178,7 @@ export default function RemoteView() {
     
     ws.onopen = () => {
       console.log('Viewer WebSocket connected')
+      setConnectStatus('Relay connected, waiting for device...')
     }
     
     ws.onmessage = (event) => {
@@ -135,26 +198,44 @@ export default function RemoteView() {
     
     ws.onerror = (event) => {
       console.error('WebSocket error:', event)
-      setError('Connection error')
-      setIsConnecting(false)
+      // Don't set error immediately — retry will handle it
+      if (!isStreamingRef.current) {
+        setConnectStatus('Connection hiccup, retrying...')
+      }
     }
     
     ws.onclose = () => {
       console.log('WebSocket closed')
-      setIsStreaming(false)
-      setIsConnecting(false)
+      if (isStreamingRef.current) {
+        // Was streaming and lost connection — try to reconnect
+        setIsStreaming(false)
+        isStreamingRef.current = false
+        setConnectStatus('Connection lost, reconnecting...')
+        setIsConnecting(true)
+        // Reconnect after a short delay
+        const currentSid = sessionIdRef.current
+        if (currentSid) {
+          setTimeout(() => connectWebSocket(currentSid), 1500)
+        }
+      } else {
+        setIsConnecting(false)
+      }
     }
-  }
+  }, [])
   
-  const handleSignalMessage = (msg: SignalMessage) => {
+  const handleSignalMessage = useCallback((msg: SignalMessage) => {
     switch (msg.type) {
       case 'session_info':
         console.log('Session established:', msg.session_id)
         break
         
       case 'streaming_started':
+        // Device connected! Stop retrying and clear timeouts
+        clearTimers()
         setIsStreaming(true)
+        isStreamingRef.current = true
         setIsConnecting(false)
+        setConnectStatus('')
         // Focus the container so keyboard events are captured
         setTimeout(() => containerRef.current?.focus(), 100)
         if (msg.payload) {
@@ -167,6 +248,7 @@ export default function RemoteView() {
         
       case 'streaming_stopped':
         setIsStreaming(false)
+        isStreamingRef.current = false
         setIsInputLocked(false)
         break
         
@@ -179,9 +261,10 @@ export default function RemoteView() {
       case 'error':
         setError(typeof msg.payload === 'string' ? msg.payload : JSON.stringify(msg.payload))
         setIsConnecting(false)
+        clearTimers()
         break
     }
-  }
+  }, [clearTimers])
   
   // Render JPEG frame on canvas
   const renderFrame = useCallback((data: ArrayBuffer) => {
@@ -483,10 +566,17 @@ export default function RemoteView() {
     setError(null)
     setFrameCount(0)
     setFps(0)
+    isStreamingRef.current = false
+    retryCountRef.current = 0
+    setConnectStatus('Creating session...')
     createSessionMutation.mutate()
   }
   
   const stopStreaming = async () => {
+    // Clear all retry/timeout timers
+    clearTimers()
+    isStreamingRef.current = false
+    
     // Unlock input before stopping (safety measure)
     if (isInputLocked) {
       sendMessage({ type: 'unlock_input' })
@@ -519,6 +609,7 @@ export default function RemoteView() {
     wsRef.current = null
     setSessionId(null)
     setIsStreaming(false)
+    setConnectStatus('')
   }
   
   const toggleFullscreen = async () => {
@@ -545,9 +636,10 @@ export default function RemoteView() {
   
   useEffect(() => {
     return () => {
+      clearTimers()
       wsRef.current?.close()
     }
-  }, [])
+  }, [clearTimers])
   
   return (
     <div className="animate-fade-in h-full flex flex-col space-y-6">
@@ -692,8 +784,15 @@ export default function RemoteView() {
                 <div className="absolute inset-0 border-4 border-t-[#FA9411] rounded-full animate-spin" />
                 <Loader2 className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-8 h-8 text-[#FA9411] animate-pulse" />
               </div>
-              <p className="text-xl font-bold text-white tracking-tight">Syncing Interface...</p>
-              <p className="text-sm text-gray-500 mt-2 font-medium">Waiting for hardware handshake</p>
+              <p className="text-xl font-bold text-white tracking-tight">
+                {connectStatus || 'Syncing Interface...'}
+              </p>
+              <p className="text-sm text-gray-500 mt-2 font-medium">
+                {retryCountRef.current > 0 
+                  ? `Attempt ${retryCountRef.current + 1} — Reaching device...`
+                  : 'Waiting for hardware handshake'
+                }
+              </p>
             </div>
           )}
           

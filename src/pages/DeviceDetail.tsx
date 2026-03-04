@@ -70,7 +70,7 @@ export default function DeviceDetail() {
     has_sim: boolean
   } | null>(null)
   const [_accountsError, setAccountsError] = useState<string | null>(null)
-  const [appHidden, setAppHidden] = useState(true) // hidden by default
+  const [appHidden, setAppHidden] = useState(false) // visible by default
   const [appVisibilityLoading, setAppVisibilityLoading] = useState(false)
 
   const { data: device, isLoading } = useQuery({

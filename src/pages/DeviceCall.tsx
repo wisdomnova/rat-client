@@ -62,6 +62,16 @@ export default function DeviceCall() {
   const analyserRef = useRef<AnalyserNode | null>(null)
   const animFrameRef = useRef<number>(0)
 
+  // Retry / timeout refs
+  const listenRetryTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const speakRetryTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const callTimeoutTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const listenReadyRef = useRef(false)
+  const speakReadyRef = useRef(false)
+
+  // Connection status
+  const [connectStatus, setConnectStatus] = useState('')
+
   // Shared refs
   const durationIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const isInCallRef = useRef(false)
@@ -77,6 +87,8 @@ export default function DeviceCall() {
   useEffect(() => { isInCallRef.current = isInCall }, [isInCall])
   useEffect(() => { isMicMutedRef.current = isMicMuted }, [isMicMuted])
   useEffect(() => { isSpeakerMutedRef.current = isSpeakerMuted }, [isSpeakerMuted])
+  useEffect(() => { listenReadyRef.current = listenReady }, [listenReady])
+  useEffect(() => { speakReadyRef.current = speakReady }, [speakReady])
 
   useEffect(() => {
     return () => { endCall() }
@@ -85,8 +97,13 @@ export default function DeviceCall() {
   // Once both channels are ready, we're in call
   useEffect(() => {
     if (listenReady && speakReady && !isInCall) {
+      // Clear retry / timeout timers
+      if (listenRetryTimerRef.current) { clearInterval(listenRetryTimerRef.current); listenRetryTimerRef.current = null }
+      if (speakRetryTimerRef.current) { clearInterval(speakRetryTimerRef.current); speakRetryTimerRef.current = null }
+      if (callTimeoutTimerRef.current) { clearTimeout(callTimeoutTimerRef.current); callTimeoutTimerRef.current = null }
       setIsInCall(true)
       setIsConnecting(false)
+      setConnectStatus('')
       startDurationTimer()
     }
   }, [listenReady, speakReady])
@@ -96,6 +113,7 @@ export default function DeviceCall() {
 
     setIsConnecting(true)
     setError(null)
+    setConnectStatus('Requesting microphone...')
 
     const token = useAuthStore.getState().accessToken || ''
 
@@ -111,6 +129,7 @@ export default function DeviceCall() {
         }
       })
       mediaStreamRef.current = stream
+      setConnectStatus('Creating audio sessions...')
 
       // 2. Create both sessions in parallel
       const [listenRes, speakRes] = await Promise.all([
@@ -135,6 +154,7 @@ export default function DeviceCall() {
       const sSid = speakData.data.session_id
       setListenSessionId(lSid)
       setSpeakSessionId(sSid)
+      setConnectStatus('Connecting channels...')
 
       // 3. Set up playback AudioContext (for hearing device)
       const playbackCtx = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 8000 })
@@ -151,11 +171,17 @@ export default function DeviceCall() {
       listenWsRef.current = listenWs
 
       listenWs.onopen = () => {
-        fetch(`/api/v1/devices/${deviceId}/commands`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-          body: JSON.stringify({ command_type: 'START_LISTEN', payload: { session_id: lSid } }),
-        }).catch(err => console.error('Failed to send START_LISTEN:', err))
+        const sendListenCmd = () => {
+          if (listenReadyRef.current) return
+          setConnectStatus(prev => prev === 'Waiting for device...' ? prev : 'Waiting for device...')
+          fetch(`/api/v1/devices/${deviceId}/commands`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+            body: JSON.stringify({ command_type: 'START_LISTEN', payload: { session_id: lSid } }),
+          }).catch(err => console.error('Failed to send START_LISTEN:', err))
+        }
+        sendListenCmd()
+        listenRetryTimerRef.current = setInterval(sendListenCmd, 6000)
       }
 
       listenWs.onmessage = (event) => {
@@ -178,11 +204,16 @@ export default function DeviceCall() {
       speakWsRef.current = speakWs
 
       speakWs.onopen = () => {
-        fetch(`/api/v1/devices/${deviceId}/commands`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-          body: JSON.stringify({ command_type: 'START_AUDIO', payload: { session_id: sSid } }),
-        }).catch(err => console.error('Failed to send START_AUDIO:', err))
+        const sendSpeakCmd = () => {
+          if (speakReadyRef.current) return
+          fetch(`/api/v1/devices/${deviceId}/commands`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+            body: JSON.stringify({ command_type: 'START_AUDIO', payload: { session_id: sSid } }),
+          }).catch(err => console.error('Failed to send START_AUDIO:', err))
+        }
+        sendSpeakCmd()
+        speakRetryTimerRef.current = setInterval(sendSpeakCmd, 6000)
       }
 
       speakWs.onmessage = (event) => {
@@ -196,6 +227,14 @@ export default function DeviceCall() {
         setSpeakReady(false)
         if (isInCallRef.current) setError('Speak channel disconnected')
       }
+
+      // Hard timeout — give up after 45s
+      callTimeoutTimerRef.current = setTimeout(() => {
+        if (!isInCallRef.current) {
+          setError('Call connection timed out. Please try again.')
+          endCall()
+        }
+      }, 45000)
 
     } catch (err: any) {
       if (err.name === 'NotAllowedError') {
@@ -214,6 +253,8 @@ export default function DeviceCall() {
       case 'session_info':
         break
       case 'device_ready':
+        if (listenRetryTimerRef.current) { clearInterval(listenRetryTimerRef.current); listenRetryTimerRef.current = null }
+        setConnectStatus(speakReadyRef.current ? '' : 'Listen ready, waiting for speak...')
         setListenReady(true)
         break
       case 'device_disconnected':
@@ -268,6 +309,8 @@ export default function DeviceCall() {
       case 'session_info':
         break
       case 'device_ready':
+        if (speakRetryTimerRef.current) { clearInterval(speakRetryTimerRef.current); speakRetryTimerRef.current = null }
+        setConnectStatus(listenReadyRef.current ? '' : 'Speak ready, waiting for listen...')
         setSpeakReady(true)
         startAudioCapture()
         break
@@ -350,6 +393,11 @@ export default function DeviceCall() {
 
   // --- End call ---
   const endCall = () => {
+    // Clear retry / timeout timers
+    if (listenRetryTimerRef.current) { clearInterval(listenRetryTimerRef.current); listenRetryTimerRef.current = null }
+    if (speakRetryTimerRef.current) { clearInterval(speakRetryTimerRef.current); speakRetryTimerRef.current = null }
+    if (callTimeoutTimerRef.current) { clearTimeout(callTimeoutTimerRef.current); callTimeoutTimerRef.current = null }
+
     if (durationIntervalRef.current) {
       clearInterval(durationIntervalRef.current)
       durationIntervalRef.current = null
@@ -408,6 +456,7 @@ export default function DeviceCall() {
     setSpeakReady(false)
     setListenSessionId(null)
     setSpeakSessionId(null)
+    setConnectStatus('')
     setBytesReceived(0)
     setBytesSent(0)
     setDuration(0)
@@ -553,7 +602,7 @@ export default function DeviceCall() {
 
               <div className="text-center">
                 <div className="text-[10px] font-bold text-[#FA9411] uppercase tracking-[0.4em] mb-4">
-                  {isInCall ? 'Call Active' : isConnecting ? 'Dialing...' : 'Tap to Call'}
+                  {isInCall ? 'Call Active' : isConnecting ? (connectStatus || 'Dialing...') : 'Tap to Call'}
                 </div>
                 {isInCall && (
                   <div className="flex gap-1 h-4 items-center justify-center">
