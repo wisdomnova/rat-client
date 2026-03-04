@@ -115,7 +115,8 @@ export default function TrackAndListen() {
   const navigate = useNavigate()
 
   // ── Tracking state ──────────────────────────────────────────────────────────
-  const [trackSessionId, setTrackSessionId] = useState<string | null>(null)
+  // Note: trackSessionId is set but not directly read in component, kept for future use
+  const [_trackSessionId, setTrackSessionId] = useState<string | null>(null)
   const [isTrackConnecting, setIsTrackConnecting] = useState(false)
   const [isTracking, setIsTracking] = useState(false)
   const [follow, setFollow] = useState(true)
@@ -138,7 +139,8 @@ export default function TrackAndListen() {
   const [listenError, setListenError] = useState<string | null>(null)
   const [audioLevel, setAudioLevel] = useState(0)
   const [listenDuration, setListenDuration] = useState(0)
-  const [bytesReceived, setBytesReceived] = useState(0)
+  // Note: bytesReceived is set but not directly read in component, kept for future use
+  const [_bytesReceived, setBytesReceived] = useState(0)
 
   const listenWsRef = useRef<WebSocket | null>(null)
   const audioContextRef = useRef<AudioContext | null>(null)
@@ -147,10 +149,6 @@ export default function TrackAndListen() {
   const listenDurationRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const isListeningRef = useRef(false)
 
-  // ── Activity monitor state ─────────────────────────────────────────────────
-  const [activityData, setActivityData] = useState<Record<string, any> | null>(null)
-  const [activityLoading, setActivityLoading] = useState(false)
-
   const { data: device, isLoading } = useQuery({
     queryKey: ['device', id],
     queryFn: () => devicesAPI.get(id!),
@@ -158,6 +156,9 @@ export default function TrackAndListen() {
     staleTime: 5_000,
     refetchInterval: 10_000,
   })
+
+  // Note: activityLoading is set but not directly read in component, kept for future use
+  const [_activityLoading, setActivityLoading] = useState(false)
 
   useEffect(() => { isListeningRef.current = isListening }, [isListening])
 
@@ -168,16 +169,13 @@ export default function TrackAndListen() {
       setActivityLoading(true)
       try {
         const token = useAuthStore.getState().accessToken || ''
-        const resp = await fetch(`/api/v1/devices/${id}/commands`, {
+        await fetch(`/api/v1/devices/${id}/commands`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
           body: JSON.stringify({ command_type: 'GET_ACTIVITY', payload: {} }),
         })
-        if (resp.ok) {
-          const data = await resp.json()
-          // The command result comes asynchronously — we poll the latest device info instead
-          // Actually the command result would need to be fetched. For now we just use device telemetry.
-        }
+        // The command result comes asynchronously — we poll the latest device info instead
+        // Actually the command result would need to be fetched. For now we just use device telemetry.
       } catch {}
       setActivityLoading(false)
     }
@@ -368,7 +366,7 @@ export default function TrackAndListen() {
   }
 
   const formatListenDuration = (s: number) => `${Math.floor(s / 60).toString().padStart(2, '0')}:${(s % 60).toString().padStart(2, '0')}`
-  const formatBytes = (b: number) => b < 1024 ? `${b} B` : b < 1048576 ? `${(b / 1024).toFixed(1)} KB` : `${(b / 1048576).toFixed(1)} MB`
+
 
   const defaultCenter: [number, number] = currentPosition
     ? [currentPosition.lat, currentPosition.lng]

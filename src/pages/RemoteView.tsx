@@ -22,7 +22,6 @@ import {
   Power,
   RotateCcw,
   Lock,
-  Unlock,
   ShieldOff,
   Shield,
   ChevronDown
