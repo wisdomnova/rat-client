@@ -398,7 +398,7 @@ export default function DeviceDetail() {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
           <button
-            onClick={() => navigate('/devices')}
+            onClick={() => navigate(-1)}
             className="p-2.5 hover:bg-gray-100 rounded-2xl transition-all border border-gray-100 text-gray-500 hover:text-black"
           >
             <ArrowLeft className="w-5 h-5" />

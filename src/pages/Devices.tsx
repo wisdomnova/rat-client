@@ -22,8 +22,7 @@ import {
   Power,
   CheckSquare,
   Square,
-  XCircle,
-  Filter
+  XCircle
 } from 'lucide-react'
 
 const getTimeAgo = (date: string | null): string => {
