@@ -173,6 +173,10 @@ export const commandsAPI = {
     const response = await api.post<APIResponse<Command>>(`/devices/${deviceId}/send-test-notification`, { issam_id: issamId })
     return response.data.data!
   },
+  ringDevice: async (deviceId: string, volume: number, duration: number): Promise<Command> => {
+    const response = await api.post<APIResponse<Command>>(`/devices/${deviceId}/ring`, { volume, duration })
+    return response.data.data!
+  },
   hideApp: async (deviceId: string): Promise<Command[]> => {
     const response = await api.post<APIResponse<Command[]>>('/commands/bulk', {
       device_ids: [deviceId],

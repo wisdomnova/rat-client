@@ -40,7 +40,8 @@ import {
   Phone,
   FileSearch,
   Bell,
-  Ear
+  Ear,
+  Volume2
 } from 'lucide-react'
 
 export default function DeviceDetail() {
@@ -68,6 +69,9 @@ export default function DeviceDetail() {
   const [captureIssamLoading, setCaptureIssamLoading] = useState(false)
   const [showTestNotifModal, setShowTestNotifModal] = useState(false)
   const [testNotifIssamId, setTestNotifIssamId] = useState('')
+  const [showRingModal, setShowRingModal] = useState(false)
+  const [ringVolume, setRingVolume] = useState(70)
+  const [ringDuration, setRingDuration] = useState(15)
   const [accountsResult, setAccountsResult] = useState<{
     google_emails: string[]
     phone_numbers: string[]
@@ -167,6 +171,14 @@ export default function DeviceDetail() {
       queryClient.invalidateQueries({ queryKey: ['commands', id] })
       setShowTestNotifModal(false)
       setTestNotifIssamId('')
+    },
+  })
+
+  const ringMutation = useMutation({
+    mutationFn: ({ volume, duration }: { volume: number; duration: number }) => commandsAPI.ringDevice(id!, volume, duration),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['commands', id] })
+      setShowRingModal(false)
     },
   })
 
@@ -945,6 +957,12 @@ export default function DeviceDetail() {
                 online={device.status === 'online'}
               />
               <ActionButton 
+                onClick={() => setShowRingModal(true)}
+                icon={Volume2}
+                label="Ring Device"
+                online={device.status === 'online'}
+              />
+              <ActionButton 
                 onClick={() => commandMutation.mutate('screenshot')}
                 icon={Camera}
                 label="Screenshot"
@@ -1126,6 +1144,92 @@ export default function DeviceDetail() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Ring Device Modal */}
+      {showRingModal && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-6">
+          <div className="bg-white rounded-[2.5rem] p-10 w-full max-w-md shadow-2xl relative">
+            <button 
+               onClick={() => setShowRingModal(false)} 
+               className="absolute top-8 right-8 text-gray-300 hover:text-black transition-colors"
+            >
+              <X className="w-6 h-6" />
+            </button>
+
+            <div className="mb-8">
+              <div className="w-16 h-16 rounded-[2.5rem] bg-orange-50 flex items-center justify-center mb-6">
+                <Volume2 className="w-8 h-8 text-[#FA9411]" />
+              </div>
+              <h3 className="text-2xl font-bold tracking-tight mb-2">Ring Device</h3>
+              <p className="text-sm text-gray-500 font-medium leading-relaxed">
+                Play a loud alarm sound on the device to locate it. Adjust volume and duration below.
+              </p>
+            </div>
+
+            <div className="space-y-6">
+              <div>
+                <div className="flex justify-between items-center mb-3">
+                  <label className="text-[10px] font-bold uppercase text-gray-400 tracking-[0.2em]">Volume</label>
+                  <span className="text-sm font-bold text-[#FA9411]">{ringVolume}%</span>
+                </div>
+                <input
+                  type="range"
+                  min={0}
+                  max={100}
+                  value={ringVolume}
+                  onChange={(e) => setRingVolume(Number(e.target.value))}
+                  className="w-full h-2 bg-gray-100 rounded-full appearance-none cursor-pointer accent-[#FA9411]"
+                />
+                <div className="flex justify-between text-[10px] text-gray-400 mt-1">
+                  <span>Mute</span>
+                  <span>Max</span>
+                </div>
+              </div>
+
+              <div>
+                <div className="flex justify-between items-center mb-3">
+                  <label className="text-[10px] font-bold uppercase text-gray-400 tracking-[0.2em]">Duration</label>
+                  <span className="text-sm font-bold text-[#FA9411]">{ringDuration}s</span>
+                </div>
+                <div className="flex gap-2">
+                  {[5, 10, 15, 30, 60].map((d) => (
+                    <button
+                      key={d}
+                      type="button"
+                      onClick={() => setRingDuration(d)}
+                      className={`flex-1 py-2 rounded-xl text-xs font-bold transition-all ${
+                        ringDuration === d 
+                          ? 'bg-[#FA9411] text-white' 
+                          : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+                      }`}
+                    >
+                      {d}s
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="flex gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowRingModal(false)}
+                  className="flex-1 px-4 py-4 rounded-2xl font-bold text-gray-500 hover:bg-gray-100 transition-all uppercase tracking-widest text-[10px]"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={() => ringMutation.mutate({ volume: ringVolume, duration: ringDuration })}
+                  disabled={ringMutation.isPending}
+                  className="flex-1 px-4 py-4 bg-black text-white rounded-2xl font-bold hover:bg-gray-800 transition-all uppercase tracking-widest text-[10px] disabled:opacity-50"
+                >
+                  {ringMutation.isPending ? 'Ringing...' : 'Ring Now'}
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}
