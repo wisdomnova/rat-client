@@ -168,8 +168,10 @@ export default function Devices() {
     }
   }
 
+  const devices = data?.devices ?? []
+
   const toggleSelectAll = () => {
-    const onlineDevices = data?.devices.filter(d => d.status === 'online') || []
+    const onlineDevices = devices.filter(d => d.status === 'online')
     const onlineIds = onlineDevices.map(d => d.id)
     const allOnlineSelected = onlineIds.length > 0 && onlineIds.every(id => selectedIds.includes(id))
     if (allOnlineSelected) {
@@ -180,7 +182,7 @@ export default function Devices() {
   }
 
   const allOnlineSelected = (() => {
-    const onlineIds = data?.devices.filter(d => d.status === 'online').map(d => d.id) || []
+    const onlineIds = devices.filter(d => d.status === 'online').map(d => d.id)
     return onlineIds.length > 0 && onlineIds.every(id => selectedIds.includes(id))
   })()
 
@@ -193,7 +195,7 @@ export default function Devices() {
 
   const toggleSelect = (e: React.MouseEvent, id: string) => {
     e.stopPropagation()
-    const device = data?.devices.find(d => d.id === id)
+    const device = devices.find(d => d.id === id)
     if (device?.status !== 'online') return
     if (selectedIds.includes(id)) {
       setSelectedIds(prev => prev.filter(i => i !== id))
@@ -330,10 +332,10 @@ export default function Devices() {
         <div className="flex items-center justify-center py-24">
           <div className="w-10 h-10 border-4 border-[#FA9411] border-t-transparent rounded-full animate-spin" />
         </div>
-      ) : (data?.devices ?? []).length > 0 ? (
+      ) : devices.length > 0 ? (
         <div className="space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-            {data!.devices.map((device) => (
+            {devices.map((device) => (
               <div
                 key={device.id}
                 onClick={() => navigate(`/devices/${device.id}`)}
