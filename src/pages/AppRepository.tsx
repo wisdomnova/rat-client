@@ -36,6 +36,12 @@ export default function AppRepository() {
   const [selectedDevices, setSelectedDevices] = useState<string[]>([])
   const [selectedEnrollments, setSelectedEnrollments] = useState<string[]>([])
   const [searchQuery, setSearchQuery] = useState('')
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null)
+
+  const showToast = (message: string, type: 'success' | 'error' = 'success') => {
+    setToast({ message, type })
+    setTimeout(() => setToast(null), 4000)
+  }
 
   const { data: apps, isLoading } = useQuery<AppEntry[]>({
     queryKey: ['apps'],
@@ -107,7 +113,10 @@ export default function AppRepository() {
       setSelectedDevices([])
       setSelectedEnrollments([])
       setSearchQuery('')
-      alert(`Deployment queued for ${data?.targets || '?'} device(s)`)
+      showToast(`Deployment queued for ${data?.targets || '?'} device(s)`)
+    },
+    onError: (error: any) => {
+      showToast(error?.response?.data?.error?.message || error?.message || 'Deployment failed', 'error')
     },
   })
 
@@ -636,6 +645,19 @@ export default function AppRepository() {
             )}
           </div>
         </>
+      )}
+
+      {/* Branded Toast */}
+      {toast && (
+        <div className="fixed bottom-8 right-8 z-[100] animate-fade-in">
+          <div className={`flex items-center space-x-3 px-6 py-4 rounded-2xl shadow-2xl text-white font-bold text-sm ${toast.type === 'success' ? 'bg-[#FA9411]' : 'bg-red-500'}`}>
+            {toast.type === 'success' ? <CheckCircle className="w-5 h-5 shrink-0" /> : <AlertCircle className="w-5 h-5 shrink-0" />}
+            <span>{toast.message}</span>
+            <button onClick={() => setToast(null)} className="ml-2 opacity-70 hover:opacity-100">
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
       )}
     </div>
   )
