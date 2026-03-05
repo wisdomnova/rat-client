@@ -330,10 +330,10 @@ export default function Devices() {
         <div className="flex items-center justify-center py-24">
           <div className="w-10 h-10 border-4 border-[#FA9411] border-t-transparent rounded-full animate-spin" />
         </div>
-      ) : data?.devices && data.devices.length > 0 ? (
+      ) : (data?.devices ?? []).length > 0 ? (
         <div className="space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-            {data.devices.map((device) => (
+            {data!.devices.map((device) => (
               <div
                 key={device.id}
                 onClick={() => navigate(`/devices/${device.id}`)}
@@ -409,7 +409,7 @@ export default function Devices() {
           {/* Pagination */}
           <div className="flex items-center justify-between pt-10 pb-20">
             <div className="text-sm font-medium text-gray-500">
-              Showing page <span className="text-gray-900">{page}</span> of {data.total_pages}
+              Showing page <span className="text-gray-900">{page}</span> of {data!.total_pages}
             </div>
             <div className="flex gap-3">
               <button
@@ -421,8 +421,8 @@ export default function Devices() {
                 Previous
               </button>
               <button
-                onClick={() => setPage(p => Math.min(data.total_pages, p + 1))}
-                disabled={page === data.total_pages}
+                onClick={() => setPage(p => Math.min(data!.total_pages, p + 1))}
+                disabled={page === data!.total_pages}
                 className="flex items-center px-5 py-3 bg-white border border-gray-200 rounded-2xl text-sm font-semibold hover:bg-gray-50 disabled:opacity-40 transition-all shadow-sm"
               >
                 Next
