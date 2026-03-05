@@ -1,10 +1,9 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { useNavigate } from 'react-router-dom'
-import { devicesAPI, commandsAPI } from '../api'
+import { useNavigate, useSearchParams } from 'react-router-dom'
+import { devicesAPI, commandsAPI, enrollmentsAPI, groupsAPI } from '../api'
 import { 
   Search, 
-  Filter, 
   ChevronLeft, 
   ChevronRight,
   Tablet,
@@ -18,7 +17,13 @@ import {
   Loader2,
   EyeOff,
   Eye,
-  FileSearch
+  Ear,
+  Volume2,
+  Power,
+  CheckSquare,
+  Square,
+  XCircle,
+  Filter
 } from 'lucide-react'
 
 const getTimeAgo = (date: string | null): string => {
@@ -41,22 +46,60 @@ const getTimeAgo = (date: string | null): string => {
 export default function Devices() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
-  const [page, setPage] = useState(1)
-  const [search, setSearch] = useState('')
-  const [statusFilter, setStatusFilter] = useState<string>('')
+  const [searchParams, setSearchParams] = useSearchParams()
+
+  // Derive filter state from URL search params — persists across navigation
+  const page = Number(searchParams.get('page')) || 1
+  const search = searchParams.get('q') || ''
+  const statusFilter = searchParams.get('status') || ''
+  const enrollmentFilter = searchParams.get('enrollment') || ''
+  const groupFilter = searchParams.get('group') || ''
+
+  const updateParams = (updates: Record<string, string>) => {
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev)
+      for (const [key, value] of Object.entries(updates)) {
+        if (value) {
+          next.set(key, value)
+        } else {
+          next.delete(key)
+        }
+      }
+      return next
+    }, { replace: true })
+  }
+
+  const setPage = (v: number | ((p: number) => number)) => {
+    const next = typeof v === 'function' ? v(page) : v
+    updateParams({ page: next > 1 ? String(next) : '' })
+  }
+
   const [selectedIds, setSelectedIds] = useState<string[]>([])
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null)
+  const [appHiddenBulk, setAppHiddenBulk] = useState(false)
   const pageSize = 20
 
   const { data, isLoading } = useQuery({
-    queryKey: ['devices', page, search, statusFilter],
+    queryKey: ['devices', page, search, statusFilter, enrollmentFilter, groupFilter],
     queryFn: () => devicesAPI.list({ 
       page, 
       page_size: pageSize, 
       search: search || undefined,
-      status: statusFilter || undefined 
+      status: statusFilter || undefined,
+      enrollment_token: enrollmentFilter || undefined,
+      group_id: groupFilter || undefined,
     }),
     refetchInterval: 30000,
+  })
+
+  const { data: enrollments } = useQuery({
+    queryKey: ['enrollments'],
+    queryFn: () => enrollmentsAPI.list(),
+  })
+
+  const { data: groups } = useQuery({
+    queryKey: ['groups'],
+    queryFn: () => groupsAPI.list(),
   })
 
   const bulkMutation = useMutation({
@@ -111,6 +154,17 @@ export default function Devices() {
     }
   }
 
+  const allOnlineSelected = (() => {
+    const onlineIds = data?.devices.filter(d => d.status === 'online').map(d => d.id) || []
+    return onlineIds.length > 0 && onlineIds.every(id => selectedIds.includes(id))
+  })()
+
+  const hasActiveFilters = statusFilter || enrollmentFilter || groupFilter
+
+  const clearAllFilters = () => {
+    updateParams({ status: '', enrollment: '', group: '', page: '', q: '' })
+  }
+
   const toggleSelect = (e: React.MouseEvent, id: string) => {
     e.stopPropagation()
     const device = data?.devices.find(d => d.id === id)
@@ -139,56 +193,109 @@ export default function Devices() {
             Manage and monitor your {data?.total ?? 0} active units.
           </p>
         </div>
-        <button 
-          onClick={handleExport}
-          className="flex items-center px-6 py-3 bg-white border border-gray-200 rounded-2xl hover:border-[#FA9411] hover:text-[#FA9411] transition-all text-sm font-semibold shadow-sm"
-        >
-          <Download className="w-4 h-4 mr-2" />
-          Download List (CSV)
-        </button>
-      </div>
-
-      {/* Control Bar */}
-      <div className="flex flex-col lg:flex-row gap-4">
-        <div className="flex-1 relative group">
-          <Search className="w-5 h-5 text-gray-400 absolute left-4 top-1/2 -translate-y-1/2 group-focus-within:text-[#FA9411] transition-colors" />
-          <input
-            type="text"
-            placeholder="Search by name, model, or ID..."
-            value={search}
-            onChange={(e) => {
-              setSearch(e.target.value)
-              setPage(1)
-            }}
-            className="w-full pl-12 pr-4 py-4 bg-white border border-gray-200 rounded-3xl focus:outline-none focus:border-[#FA9411] shadow-sm transition-all text-gray-900 placeholder:text-gray-400"
-          />
-        </div>
-        <div className="flex gap-4">
-          <div className="relative min-w-[180px]">
-            <Filter className="w-5 h-5 text-gray-400 absolute left-4 top-1/2 -translate-y-1/2" />
-            <select
-              value={statusFilter}
-              onChange={(e) => {
-                setStatusFilter(e.target.value)
-                setPage(1)
-              }}
-              className="w-full pl-12 pr-10 py-4 bg-white border border-gray-200 rounded-3xl focus:outline-none focus:border-[#FA9411] shadow-sm transition-all appearance-none text-gray-700 font-medium"
-            >
-              <option value="">All Conditions</option>
-              <option value="online">Online Only</option>
-              <option value="offline">Currently Offline</option>
-              <option value="pending">Waiting</option>
-            </select>
-          </div>
+        <div className="flex items-center gap-3">
+          {/* Select All / Deselect All - New Custom UI */}
+          <button
+            onClick={toggleSelectAll}
+            className={`flex items-center gap-4 px-6 py-4 rounded-3xl text-sm font-bold transition-all shadow-md group ${
+              allOnlineSelected 
+                ? 'bg-[#FA9411] text-white shadow-[#FA9411]/20' 
+                : 'bg-white text-gray-700 hover:bg-gray-50'
+            }`}
+          >
+            <div className={`w-6 h-6 rounded-lg border-2 flex items-center justify-center transition-all ${
+              allOnlineSelected 
+                ? 'bg-white border-white' 
+                : 'border-gray-200 group-hover:border-[#FA9411]'
+            }`}>
+              {allOnlineSelected && <CheckSquare className="w-4 h-4 text-[#FA9411]" />}
+            </div>
+            <span className="tracking-tight uppercase text-[11px] font-black">{allOnlineSelected ? 'Deselect All' : 'Select All Online'}</span>
+          </button>
           
           <button 
-            onClick={toggleSelectAll}
-            className="px-6 py-4 bg-white border border-gray-200 rounded-3xl text-sm font-semibold hover:bg-gray-50 transition-colors whitespace-nowrap shadow-sm"
+            onClick={handleExport}
+            className="p-4 bg-white border border-gray-100 rounded-3xl hover:border-[#FA9411] hover:text-[#FA9411] transition-all shadow-sm"
+            title="Download CSV"
           >
-            {data?.devices && data.devices.filter(d => d.status === 'online').length > 0 && 
-             data.devices.filter(d => d.status === 'online').every(id => selectedIds.includes(id.id)) 
-             ? 'Deselect All' : 'Select All Online'}
+            <Download className="w-5 h-5" />
           </button>
+        </div>
+      </div>
+
+      {/* Search + Filters - Redesigned Row */}
+      <div className="flex flex-col xl:flex-row gap-6">
+        {/* Search Bar - Wider */}
+        <div className="flex-1 relative group">
+          <Search className="w-6 h-6 text-gray-300 absolute left-6 top-1/2 -translate-y-1/2 group-focus-within:text-[#FA9411] transition-colors" />
+          <input
+            type="text"
+            placeholder="Search by name, model, hardware ID..."
+            value={search}
+            onChange={(e) => {
+              updateParams({ q: e.target.value, page: '' })
+            }}
+            className="w-full pl-16 pr-8 py-6 bg-white border-2 border-transparent focus:bg-white focus:border-[#FA9411]/20 rounded-[2.5rem] focus:outline-none shadow-sm transition-all text-gray-900 placeholder:text-gray-400 font-bold"
+          />
+        </div>
+
+        {/* Filters Group - Ultra Clean */}
+        <div className="flex items-center gap-4 p-3 bg-white border border-gray-100 rounded-[2.5rem] shadow-sm">
+          {/* Status Filter */}
+          <div className="flex flex-col px-4 border-r border-gray-100 min-w-[140px]">
+            <span className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-1">Status</span>
+            <select
+              value={statusFilter}
+              onChange={(e) => updateParams({ status: e.target.value, page: '' })}
+              className={`bg-transparent text-sm font-bold appearance-none cursor-pointer focus:outline-none ${statusFilter ? 'text-[#FA9411]' : 'text-gray-900'}`}
+            >
+              <option value="">All Status</option>
+              <option value="online">Online</option>
+              <option value="offline">Offline</option>
+              <option value="pending">Pending</option>
+            </select>
+          </div>
+
+          {/* Enrollment Filter */}
+          <div className="flex flex-col px-4 border-r border-gray-100 min-w-[160px]">
+            <span className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-1">Enrollment</span>
+            <select
+              value={enrollmentFilter}
+              onChange={(e) => updateParams({ enrollment: e.target.value, page: '' })}
+              className={`bg-transparent text-sm font-bold appearance-none cursor-pointer focus:outline-none max-w-[180px] truncate ${enrollmentFilter ? 'text-[#FA9411]' : 'text-gray-900'}`}
+            >
+              <option value="">Select Token</option>
+              {enrollments?.map((e: any) => (
+                <option key={e.token} value={e.token}>{e.name || e.token.substring(0, 8)}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* Group Filter */}
+          <div className="flex flex-col px-4 min-w-[160px]">
+            <span className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-1">Group</span>
+            <select
+              value={groupFilter}
+              onChange={(e) => updateParams({ group: e.target.value, page: '' })}
+              className={`bg-transparent text-sm font-bold appearance-none cursor-pointer focus:outline-none max-w-[180px] truncate ${groupFilter ? 'text-[#FA9411]' : 'text-gray-900'}`}
+            >
+              <option value="">All Groups</option>
+              {groups?.map((g: any) => (
+                <option key={g.id} value={g.id}>{g.name}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* Clear All Filters */}
+          {hasActiveFilters && (
+            <button
+              onClick={clearAllFilters}
+              className="ml-2 w-12 h-12 flex items-center justify-center bg-red-50 text-red-500 hover:bg-red-100 rounded-2xl transition-all"
+              title="Reset Filters"
+            >
+              <XCircle className="w-5 h-5" />
+            </button>
+          )}
         </div>
       </div>
 
@@ -204,24 +311,26 @@ export default function Devices() {
               <div
                 key={device.id}
                 onClick={() => navigate(`/devices/${device.id}`)}
-                className={`relative group bg-white border-2 p-6 rounded-[2rem] transition-all cursor-pointer hover:shadow-xl hover:-translate-y-1 ${
+                className={`relative group bg-white border-2 p-6 rounded-[2.5rem] transition-all duration-300 cursor-pointer overflow-hidden ${
                   selectedIds.includes(device.id) 
-                    ? 'border-[#FA9411] shadow-lg shadow-[#FA9411]/5' 
-                    : 'border-transparent shadow-sm'
+                    ? 'border-[#FA9411] shadow-xl shadow-[#FA9411]/10 bg-gradient-to-br from-white to-[#FA9411]/5' 
+                    : 'border-transparent shadow-sm hover:shadow-xl hover:-translate-y-1'
                 }`}
               >
-                {/* Selection Checkbox (top-right, stealth until hover) */}
+                {/* Custom Selection Checkbox (top-right) */}
                 <div 
-                  className={`absolute top-6 right-6 z-10 transition-opacity ${selectedIds.includes(device.id) ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}
-                  onClick={(e) => e.stopPropagation()}
+                  className={`absolute top-6 right-6 z-10 transition-all duration-300 ${
+                    selectedIds.includes(device.id) ? 'opacity-100 scale-110' : 'opacity-0 scale-90 group-hover:opacity-100 group-hover:scale-100'
+                  }`}
+                  onClick={(e) => toggleSelect(e as any, device.id)}
                 >
-                  <input 
-                    type="checkbox" 
-                    className="w-6 h-6 rounded-full border-2 border-gray-200 text-[#FA9411] focus:ring-[#FA9411] disabled:opacity-10 cursor-pointer"
-                    checked={selectedIds.includes(device.id)}
-                    disabled={device.status !== 'online'}
-                    onChange={(e) => toggleSelect(e as any, device.id)}
-                  />
+                  <div className={`w-8 h-8 rounded-xl flex items-center justify-center transition-all shadow-sm ${
+                    selectedIds.includes(device.id) 
+                      ? 'bg-[#FA9411] text-white' 
+                      : 'bg-white border-2 border-gray-100 text-gray-300 hover:border-[#FA9411] hover:text-[#FA9411]'
+                  }`}>
+                    {selectedIds.includes(device.id) ? <CheckSquare className="w-5 h-5" /> : <Square className="w-5 h-5" />}
+                  </div>
                 </div>
 
                 <div className="flex items-start space-x-5">
@@ -304,77 +413,97 @@ export default function Devices() {
         </div>
       )}
 
-      {/* Bulk Actions (Updated for Orange Branding) */}
+      {/* Bulk Actions Bar - Redesigned for more space and better UI */}
       {selectedIds.length > 0 && (
-        <div className="fixed bottom-10 left-1/2 -translate-x-1/2 bg-[#FA9411] text-white px-8 py-5 rounded-[2.5rem] shadow-2xl flex items-center space-x-8 z-50 animate-in slide-in-from-bottom-8 duration-500">
-          <div className="flex items-center pr-8 border-r border-white/20">
-            <span className="font-bold text-2xl mr-2 leading-none">{selectedIds.length}</span>
-            <span className="text-white/80 text-sm font-medium uppercase tracking-wider">Selected</span>
+        <div className="fixed bottom-10 left-1/2 -translate-x-1/2 z-50 animate-in slide-in-from-bottom-12 duration-500">
+          <div className="bg-gray-900/95 backdrop-blur-xl ring-1 ring-white/10 rounded-[3rem] shadow-[0_25px_60px_-15px_rgba(0,0,0,0.5)] p-4 flex items-center gap-6">
+            {/* Selected Info */}
+            <div className="flex flex-col items-center justify-center pl-6 pr-8 border-r border-white/10">
+              <span className="text-3xl font-black text-[#FA9411] leading-none tracking-tighter">{selectedIds.length}</span>
+              <span className="text-[10px] font-black text-white/40 uppercase tracking-widest mt-1">Units</span>
+            </div>
+
+            {/* Actions Grid-like grouping */}
+            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-1 bg-white/5 p-1 rounded-3xl">
+                <BulkActionBtn
+                  icon={Ear}
+                  label="Capture ISSAM"
+                  onClick={() => bulkMutation.mutate({ type: 'CAPTURE_ISSAM', deviceIds: selectedIds })}
+                  disabled={bulkMutation.isPending}
+                />
+                <BulkActionBtn
+                  icon={Volume2}
+                  label="Ring"
+                  onClick={() => bulkMutation.mutate({ type: 'RING_DEVICE', deviceIds: selectedIds })}
+                  disabled={bulkMutation.isPending}
+                />
+              </div>
+
+              <div className="flex items-center gap-1 bg-white/5 p-1 rounded-3xl">
+                {/* App Visibility Toggle */}
+                <button
+                  onClick={() => {
+                    const nextType = appHiddenBulk ? 'SHOW_APP' : 'HIDE_APP'
+                    bulkMutation.mutate({ type: nextType, deviceIds: selectedIds }, {
+                      onSuccess: () => setAppHiddenBulk(!appHiddenBulk)
+                    })
+                  }}
+                  disabled={bulkMutation.isPending}
+                  className="flex flex-col items-center gap-2 px-6 py-3 rounded-2xl transition-all hover:bg-white/10 group min-w-[100px]"
+                >
+                  <div className="relative">
+                    {appHiddenBulk ? <Eye className="w-6 h-6 text-green-400" /> : <EyeOff className="w-6 h-6 text-yellow-400 group-hover:text-[#FA9411]" />}
+                  </div>
+                  <span className="text-[11px] font-black text-white/60 group-hover:text-white uppercase tracking-tight">{appHiddenBulk ? 'Show App' : 'Hide App'}</span>
+                </button>
+              </div>
+
+              <div className="flex items-center gap-1 bg-white/5 p-1 rounded-3xl">
+                <BulkActionBtn
+                  icon={Lock}
+                  label="Lock"
+                  onClick={() => bulkMutation.mutate({ type: 'LOCK', deviceIds: selectedIds })}
+                  disabled={bulkMutation.isPending}
+                />
+                <BulkActionBtn
+                  icon={RotateCcw}
+                  label="Reboot"
+                  onClick={() => bulkMutation.mutate({ type: 'REBOOT', deviceIds: selectedIds })}
+                  disabled={bulkMutation.isPending}
+                />
+                <BulkActionBtn
+                  icon={Power}
+                  label="Power Off"
+                  onClick={() => bulkMutation.mutate({ type: 'POWER_OFF', deviceIds: selectedIds })}
+                  disabled={bulkMutation.isPending}
+                />
+              </div>
+
+              <div className="flex items-center gap-1 bg-red-500/10 p-1 rounded-3xl ml-2">
+                <BulkActionBtn
+                  icon={AlertTriangle}
+                  label="Wipe"
+                  onClick={() => {
+                    if (window.confirm(`Wipe ${selectedIds.length} device(s)? This cannot be undone.`)) {
+                      bulkMutation.mutate({ type: 'WIPE', deviceIds: selectedIds })
+                    }
+                  }}
+                  disabled={bulkMutation.isPending}
+                  variant="danger"
+                />
+              </div>
+            </div>
+
+            {/* Cancel Action */}
+            <button
+              onClick={() => setSelectedIds([])}
+              className="ml-4 mr-2 w-14 h-14 flex items-center justify-center rounded-full bg-white/5 hover:bg-red-500 hover:text-white text-white/40 transition-all shadow-inner group"
+              title="Cancel Selection"
+            >
+              <X className="w-6 h-6 group-hover:rotate-90 transition-transform duration-300" />
+            </button>
           </div>
-          
-          <div className="flex items-center space-x-6">
-            <button 
-              onClick={() => bulkMutation.mutate({ type: 'LOCK', deviceIds: selectedIds })}
-              disabled={bulkMutation.isPending}
-              className="flex items-center hover:scale-105 transition-transform text-sm font-bold disabled:opacity-50"
-            >
-              <Lock className="w-5 h-5 mr-2" />
-              Lock
-            </button>
-            <button 
-              onClick={() => bulkMutation.mutate({ type: 'REBOOT', deviceIds: selectedIds })}
-              disabled={bulkMutation.isPending}
-              className="flex items-center hover:scale-105 transition-transform text-sm font-bold disabled:opacity-50"
-            >
-              <RotateCcw className="w-5 h-5 mr-2" />
-              Reboot
-            </button>
-            <button 
-              onClick={() => bulkMutation.mutate({ type: 'WIPE', deviceIds: selectedIds })}
-              disabled={bulkMutation.isPending}
-              className="flex items-center text-white/90 hover:text-white transition-colors text-sm font-bold disabled:opacity-50"
-            >
-              <AlertTriangle className="w-5 h-5 mr-2" />
-              Wipe
-            </button>
-
-            <div className="w-px h-6 bg-white/20" />
-
-            <button 
-              onClick={() => bulkMutation.mutate({ type: 'HIDE_APP', deviceIds: selectedIds })}
-              disabled={bulkMutation.isPending}
-              className="flex items-center hover:scale-105 transition-transform text-sm font-bold disabled:opacity-50"
-            >
-              <EyeOff className="w-5 h-5 mr-2" />
-              Hide App
-            </button>
-            <button 
-              onClick={() => bulkMutation.mutate({ type: 'SHOW_APP', deviceIds: selectedIds })}
-              disabled={bulkMutation.isPending}
-              className="flex items-center hover:scale-105 transition-transform text-sm font-bold disabled:opacity-50"
-            >
-              <Eye className="w-5 h-5 mr-2" />
-              Show App
-            </button>
-
-            <div className="w-px h-6 bg-white/20" />
-
-            <button 
-              onClick={() => bulkMutation.mutate({ type: 'EXTRACT_ISSAM', deviceIds: selectedIds })}
-              disabled={bulkMutation.isPending}
-              className="flex items-center hover:scale-105 transition-transform text-sm font-bold disabled:opacity-50"
-            >
-              <FileSearch className="w-5 h-5 mr-2" />
-              Extract ISSAM
-            </button>
-          </div>
-
-          <button 
-            onClick={() => setSelectedIds([])}
-            className="pl-8 border-l border-white/20 text-white/70 hover:text-white text-sm font-bold transition-colors"
-          >
-            Cancel
-          </button>
         </div>
       )}
 
@@ -425,5 +554,31 @@ export default function Devices() {
         </div>
       )}
     </div>
+  )
+}
+
+function BulkActionBtn({ icon: Icon, label, onClick, disabled, variant = 'default' }: {
+  icon: any; label: string; onClick: () => void; disabled: boolean; variant?: 'default' | 'warning' | 'danger'
+}) {
+  const colors = {
+    default: 'text-white/60 hover:text-white hover:bg-white/10 group',
+    warning: 'text-orange-400 hover:text-orange-300 hover:bg-orange-500/10 group',
+    danger: 'text-red-400 hover:text-red-300 hover:bg-red-500/10 group',
+  }
+  const iconColors = {
+    default: 'text-white/40 group-hover:text-[#FA9411]',
+    warning: 'text-orange-500',
+    danger: 'text-red-500',
+  }
+
+  return (
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      className={`flex flex-col items-center gap-1.5 px-3 py-2 rounded-2xl transition-all disabled:opacity-20 ${colors[variant]}`}
+    >
+      <Icon className={`w-5 h-5 transition-transform group-hover:scale-110 ${iconColors[variant]}`} />
+      <span className="text-[10px] font-bold uppercase tracking-tight">{label}</span>
+    </button>
   )
 }
