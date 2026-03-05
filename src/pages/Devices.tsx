@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { devicesAPI, commandsAPI, enrollmentsAPI, groupsAPI } from '../api'
@@ -47,14 +47,40 @@ export default function Devices() {
   const queryClient = useQueryClient()
   const [searchParams, setSearchParams] = useSearchParams()
 
-  // Derive filter state from URL search params — persists across navigation
+  // On first mount: if URL has no filter params, restore from sessionStorage
+  const [initialized, setInitialized] = useState(false)
+  useEffect(() => {
+    const hasUrlFilters = searchParams.has('q') || searchParams.has('status') || searchParams.has('enrollment') || searchParams.has('group') || searchParams.has('page')
+    if (!hasUrlFilters) {
+      const saved = sessionStorage.getItem('devices_filters')
+      if (saved) {
+        try {
+          const params = new URLSearchParams(saved)
+          // Only restore if there are actual filters saved
+          if (params.toString()) {
+            setSearchParams(params, { replace: true })
+          }
+        } catch (_) { /* ignore */ }
+      }
+    }
+    setInitialized(true)
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Derive filter state from URL search params
   const page = Number(searchParams.get('page')) || 1
   const search = searchParams.get('q') || ''
   const statusFilter = searchParams.get('status') || ''
   const enrollmentFilter = searchParams.get('enrollment') || ''
   const groupFilter = searchParams.get('group') || ''
 
-  const updateParams = (updates: Record<string, string>) => {
+  // Persist to sessionStorage whenever URL params change
+  useEffect(() => {
+    if (initialized) {
+      sessionStorage.setItem('devices_filters', searchParams.toString())
+    }
+  }, [searchParams, initialized])
+
+  const updateParams = useCallback((updates: Record<string, string>) => {
     setSearchParams(prev => {
       const next = new URLSearchParams(prev)
       for (const [key, value] of Object.entries(updates)) {
@@ -66,7 +92,7 @@ export default function Devices() {
       }
       return next
     }, { replace: true })
-  }
+  }, [setSearchParams])
 
   const setPage = (v: number | ((p: number) => number)) => {
     const next = typeof v === 'function' ? v(page) : v
@@ -161,6 +187,7 @@ export default function Devices() {
   const hasActiveFilters = statusFilter || enrollmentFilter || groupFilter
 
   const clearAllFilters = () => {
+    sessionStorage.removeItem('devices_filters')
     updateParams({ status: '', enrollment: '', group: '', page: '', q: '' })
   }
 
