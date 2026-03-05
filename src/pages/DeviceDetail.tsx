@@ -523,6 +523,7 @@ export default function DeviceDetail() {
                   <DetailItem label="Manufacturer" value={device.manufacturer} />
                   <DetailItem label="Model" value={device.model} />
                   <DetailItem label="System Software" value={`Android ${device.android_version} (API ${device.sdk_version})`} />
+                  <DetailItem label="MDM Agent Version" value={device.agent_version ? `v${device.agent_version}` : 'Unsupported MDM version'} isTag />
                   <DetailItem label="Admin Group" value={device.group_name || 'No Group Assigned'} isTag />
                   <DetailItem label="Enrollment Link" value={device.enrollment_name || 'Direct Enrollment'} />
                   <DetailItem label="Enrollment Date" value={device.enrolled_at ? new Date(device.enrolled_at).toLocaleString() : (device.created_at ? new Date(device.created_at).toLocaleString() : 'N/A')} />
