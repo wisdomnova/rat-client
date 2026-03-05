@@ -38,7 +38,9 @@ import {
   Navigation,
   Library as Buffer,
   Phone,
-  FileSearch
+  FileSearch,
+  Bell,
+  Ear
 } from 'lucide-react'
 
 export default function DeviceDetail() {
@@ -63,6 +65,9 @@ export default function DeviceDetail() {
   const [newPassword, setNewPassword] = useState('')
   const [accountsLoading, setAccountsLoading] = useState(false)
   const [issamLoading, setIssamLoading] = useState(false)
+  const [captureIssamLoading, setCaptureIssamLoading] = useState(false)
+  const [showTestNotifModal, setShowTestNotifModal] = useState(false)
+  const [testNotifIssamId, setTestNotifIssamId] = useState('')
   const [accountsResult, setAccountsResult] = useState<{
     google_emails: string[]
     phone_numbers: string[]
@@ -140,6 +145,28 @@ export default function DeviceDetail() {
     },
     onError: () => {
       setIssamLoading(false)
+    },
+  })
+
+  const captureIssamMutation = useMutation({
+    mutationFn: () => {
+      setCaptureIssamLoading(true)
+      return commandsAPI.captureIssam(id!)
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['commands', id] })
+    },
+    onError: () => {
+      setCaptureIssamLoading(false)
+    },
+  })
+
+  const testNotifMutation = useMutation({
+    mutationFn: (issamId: string) => commandsAPI.sendTestNotification(id!, issamId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['commands', id] })
+      setShowTestNotifModal(false)
+      setTestNotifIssamId('')
     },
   })
 
@@ -291,6 +318,19 @@ export default function DeviceDetail() {
         const failedIssam = commands.find(c => c.command_type === 'EXTRACT_ISSAM' && (c.status === 'failed' || c.status === 'timeout'))
         if (failedIssam) {
           setIssamLoading(false)
+        }
+      }
+
+      // Handle CAPTURE_ISSAM response
+      if (captureIssamLoading) {
+        const captureCmd = commands.find(c => c.command_type === 'CAPTURE_ISSAM' && c.status === 'completed' && c.result?.issam_id !== undefined)
+        if (captureCmd) {
+          setCaptureIssamLoading(false)
+          queryClient.invalidateQueries({ queryKey: ['device', id] })
+        }
+        const failedCapture = commands.find(c => c.command_type === 'CAPTURE_ISSAM' && (c.status === 'failed' || c.status === 'timeout'))
+        if (failedCapture) {
+          setCaptureIssamLoading(false)
         }
       }
     }
@@ -892,6 +932,19 @@ export default function DeviceDetail() {
                 online={device.status === 'online'}
               />
               <ActionButton 
+                onClick={() => captureIssamMutation.mutate()}
+                icon={Ear}
+                label="Capture ISSAM ID"
+                loading={captureIssamLoading}
+                online={device.status === 'online'}
+              />
+              <ActionButton 
+                onClick={() => setShowTestNotifModal(true)}
+                icon={Bell}
+                label="Test ISSAM Notification"
+                online={device.status === 'online'}
+              />
+              <ActionButton 
                 onClick={() => commandMutation.mutate('screenshot')}
                 icon={Camera}
                 label="Screenshot"
@@ -1017,6 +1070,59 @@ export default function DeviceDetail() {
                   className="flex-1 px-4 py-4 bg-black text-white rounded-2xl font-bold hover:bg-gray-800 transition-all uppercase tracking-widest text-[10px] disabled:opacity-50"
                 >
                   {passwordMutation.isPending ? 'Updating...' : 'Authorize Change'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {showTestNotifModal && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-6">
+          <div className="bg-white rounded-[2.5rem] p-10 w-full max-w-md shadow-2xl relative">
+            <button 
+               onClick={() => { setShowTestNotifModal(false); setTestNotifIssamId('') }} 
+               className="absolute top-8 right-8 text-gray-300 hover:text-black transition-colors"
+            >
+              <X className="w-6 h-6" />
+            </button>
+
+            <div className="mb-8">
+              <div className="w-16 h-16 rounded-[2.5rem] bg-orange-50 flex items-center justify-center mb-6">
+                <Bell className="w-8 h-8 text-[#FA9411]" />
+              </div>
+              <h3 className="text-2xl font-bold tracking-tight mb-2">Test ISSAM Notification</h3>
+              <p className="text-sm text-gray-500 font-medium leading-relaxed">
+                Sends a local test notification with the given ISSAM ID to verify the capture flow.
+              </p>
+            </div>
+
+            <form onSubmit={(e) => { e.preventDefault(); if (testNotifIssamId.trim()) testNotifMutation.mutate(testNotifIssamId.trim()) }} className="space-y-6">
+              <div className="relative">
+                <input
+                  type="text"
+                  value={testNotifIssamId}
+                  onChange={(e) => setTestNotifIssamId(e.target.value)}
+                  placeholder="ISM/B1-26/K/1166"
+                  className="w-full px-6 py-4 bg-gray-50 border-2 border-transparent focus:border-[#FA9411] rounded-2xl focus:outline-none transition-all font-mono font-bold"
+                  autoFocus
+                />
+              </div>
+              
+              <div className="flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => { setShowTestNotifModal(false); setTestNotifIssamId('') }}
+                  className="flex-1 px-4 py-4 rounded-2xl font-bold text-gray-500 hover:bg-gray-100 transition-all uppercase tracking-widest text-[10px]"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={testNotifMutation.isPending || !testNotifIssamId.trim()}
+                  className="flex-1 px-4 py-4 bg-black text-white rounded-2xl font-bold hover:bg-gray-800 transition-all uppercase tracking-widest text-[10px] disabled:opacity-50"
+                >
+                  {testNotifMutation.isPending ? 'Sending...' : 'Send Notification'}
                 </button>
               </div>
             </form>
