@@ -7,6 +7,10 @@
     {
       "source": "/ws/:path*",
       "destination": "https://rat-backend-production.up.railway.app/ws/:path*"
+    },
+    {
+      "source": "/:path*",
+      "destination": "/index.html"
     }
   ]
 }

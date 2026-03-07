@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useParams, useNavigate, useLocation } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { devicesAPI, commandsAPI } from '../api'
 import { 
@@ -47,6 +47,7 @@ import {
 export default function DeviceDetail() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
+  const location = useLocation()
   const queryClient = useQueryClient()
   const [activeTab, setActiveTab] = useState<'info' | 'shell' | 'files' | 'apps'>('info')
   const [shellInput, setShellInput] = useState('')
@@ -398,7 +399,7 @@ export default function DeviceDetail() {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
           <button
-            onClick={() => navigate(-1)}
+            onClick={() => navigate(`/devices${location.search}`)}
             className="p-2.5 hover:bg-gray-100 rounded-2xl transition-all border border-gray-100 text-gray-500 hover:text-black"
           >
             <ArrowLeft className="w-5 h-5" />
