@@ -65,12 +65,12 @@ export default function Dashboard() {
       </div>
 
       {/* Modern Metrics Display */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-0 border border-gray-200 rounded-3xl overflow-hidden bg-white shadow-sm">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-0 border border-gray-200 rounded-3xl overflow-hidden bg-white shadow-sm">
         {statCards.map((stat, index) => (
           <div
             key={stat.label}
             className={`p-8 flex flex-col justify-between min-h-[160px] ${
-              index !== statCards.length - 1 ? 'border-b md:border-b-0 md:border-r border-gray-100' : ''
+              index !== statCards.length - 1 ? 'border-b sm:border-b-0 sm:border-r border-gray-100' : ''
             } hover:bg-gray-50 transition-colors group`}
           >
             <div className="flex items-center justify-between">

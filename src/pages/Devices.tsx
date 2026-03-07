@@ -214,24 +214,25 @@ export default function Devices() {
   return (
     <div className="animate-fade-in space-y-8">
       {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
-        <div>
+      <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-6">
+        <div className="flex-1">
           <h1 className="text-3xl font-bold text-gray-900 tracking-tight">Registered Devices</h1>
           <p className="text-gray-500 mt-2 text-lg">
             Manage and monitor your {data?.total ?? 0} active units.
           </p>
         </div>
-        <div className="flex items-center gap-3">
+        
+        <div className="flex flex-wrap items-center gap-3">
           {/* Select All / Deselect All - New Custom UI */}
           <button
             onClick={toggleSelectAll}
-            className={`flex items-center gap-4 px-6 py-4 rounded-3xl text-sm font-bold transition-all shadow-md group ${
+            className={`flex items-center gap-4 px-6 py-4 rounded-3xl text-sm font-bold transition-all shadow-md group whitespace-nowrap ${
               allOnlineSelected 
                 ? 'bg-[#FA9411] text-white shadow-[#FA9411]/20' 
                 : 'bg-white text-gray-700 hover:bg-gray-50'
             }`}
           >
-            <div className={`w-6 h-6 rounded-lg border-2 flex items-center justify-center transition-all ${
+            <div className={`w-6 h-6 rounded-lg border-2 flex items-center justify-center transition-all shrink-0 ${
               allOnlineSelected 
                 ? 'bg-white border-white' 
                 : 'border-gray-200 group-hover:border-[#FA9411]'
@@ -243,7 +244,7 @@ export default function Devices() {
           
           <button 
             onClick={handleExport}
-            className="p-4 bg-white border border-gray-100 rounded-3xl hover:border-[#FA9411] hover:text-[#FA9411] transition-all shadow-sm"
+            className="p-4 bg-white border border-gray-100 rounded-3xl hover:border-[#FA9411] hover:text-[#FA9411] transition-all shadow-sm shrink-0"
             title="Download CSV"
           >
             <Download className="w-5 h-5" />
@@ -254,7 +255,7 @@ export default function Devices() {
       {/* Search + Filters - Redesigned Row */}
       <div className="flex flex-col xl:flex-row gap-6">
         {/* Search Bar - Wider */}
-        <div className="flex-1 relative group">
+        <div className="flex-1 relative group min-w-0">
           <Search className="w-6 h-6 text-gray-300 absolute left-6 top-1/2 -translate-y-1/2 group-focus-within:text-[#FA9411] transition-colors" />
           <input
             type="text"
@@ -268,9 +269,9 @@ export default function Devices() {
         </div>
 
         {/* Filters Group - Ultra Clean */}
-        <div className="flex items-center gap-4 p-3 bg-white border border-gray-100 rounded-[2.5rem] shadow-sm">
+        <div className="flex flex-wrap items-center gap-4 p-3 bg-white border border-gray-100 rounded-[2.5rem] shadow-sm overflow-hidden">
           {/* Status Filter */}
-          <div className="flex flex-col px-4 border-r border-gray-100 min-w-[140px]">
+          <div className="flex flex-col px-4 border-r border-gray-100 min-w-[120px]">
             <span className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-1">Status</span>
             <select
               value={statusFilter}
@@ -285,7 +286,7 @@ export default function Devices() {
           </div>
 
           {/* Enrollment Filter */}
-          <div className="flex flex-col px-4 border-r border-gray-100 min-w-[160px]">
+          <div className="flex flex-col px-4 border-r border-gray-100 min-w-[140px]">
             <span className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-1">Enrollment</span>
             <select
               value={enrollmentFilter}
@@ -300,7 +301,7 @@ export default function Devices() {
           </div>
 
           {/* Group Filter */}
-          <div className="flex flex-col px-4 min-w-[160px]">
+          <div className="flex flex-col px-4 min-w-[140px]">
             <span className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-1">Group</span>
             <select
               value={groupFilter}
@@ -318,7 +319,7 @@ export default function Devices() {
           {hasActiveFilters && (
             <button
               onClick={clearAllFilters}
-              className="ml-2 w-12 h-12 flex items-center justify-center bg-red-50 text-red-500 hover:bg-red-100 rounded-2xl transition-all"
+              className="ml-auto lg:ml-2 w-12 h-12 flex items-center justify-center bg-red-50 text-red-500 hover:bg-red-100 rounded-2xl transition-all shrink-0"
               title="Reset Filters"
             >
               <XCircle className="w-5 h-5" />
@@ -334,11 +335,11 @@ export default function Devices() {
         </div>
       ) : devices.length > 0 ? (
         <div className="space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
             {devices.map((device) => (
               <div
                 key={device.id}
-                onClick={() => navigate(`/devices/${device.id}`)}
+                onClick={() => navigate(`/devices/${device.id}${location.search}`)}
                 className={`relative group bg-white border-2 p-6 rounded-[2.5rem] transition-all duration-300 cursor-pointer overflow-hidden ${
                   selectedIds.includes(device.id) 
                     ? 'border-[#FA9411] shadow-xl shadow-[#FA9411]/10 bg-gradient-to-br from-white to-[#FA9411]/5' 

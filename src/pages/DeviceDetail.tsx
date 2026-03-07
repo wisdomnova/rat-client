@@ -396,36 +396,36 @@ export default function DeviceDetail() {
   return (
     <div className="animate-fade-in space-y-6">
       {/* Header Container */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div className="flex items-center gap-4">
           <button
             onClick={() => navigate(`/devices${location.search}`)}
-            className="p-2.5 hover:bg-gray-100 rounded-2xl transition-all border border-gray-100 text-gray-500 hover:text-black"
+            className="p-2.5 hover:bg-gray-100 rounded-2xl transition-all border border-gray-100 text-gray-500 hover:text-black shrink-0"
           >
             <ArrowLeft className="w-5 h-5" />
           </button>
-          <div>
-            <div className="flex items-center gap-2">
-              <h1 className="text-3xl font-bold tracking-tight text-gray-900">
+          <div className="min-w-0">
+            <div className="flex items-center gap-2 flex-wrap">
+              <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-gray-900 truncate">
                 {device.name || device.model || 'Unknown Device'}
               </h1>
-              <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${
+              <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider shrink-0 ${
                 device.status === 'online' ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-100 text-gray-400'
               }`}>
                 {device.status}
               </span>
             </div>
-            <p className="text-gray-400 font-medium text-sm mt-0.5 uppercase tracking-wide">
+            <p className="text-gray-400 font-medium text-sm mt-0.5 uppercase tracking-wide truncate">
               {device.manufacturer || 'System'} · {device.model || 'Generic'} · Android {device.android_version || '??'}
             </p>
           </div>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 w-full sm:w-auto overflow-x-auto pb-1 sm:pb-0">
           <button
             onClick={() => commandMutation.mutate('ping')}
             disabled={device.status !== 'online' || commandMutation.isPending}
-            className="flex items-center gap-2 px-4 py-2 bg-gray-900 text-white rounded-2xl hover:bg-black transition-all disabled:opacity-50 text-sm font-semibold"
+            className="flex items-center justify-center gap-2 px-4 py-2 bg-gray-900 text-white rounded-2xl hover:bg-black transition-all disabled:opacity-50 text-sm font-semibold whitespace-nowrap flex-1 sm:flex-initial"
           >
             <Radio className="w-4 h-4" />
             Ping Device
@@ -433,7 +433,7 @@ export default function DeviceDetail() {
           <button
             onClick={() => commandMutation.mutate('reboot')}
             disabled={device.status !== 'online' || commandMutation.isPending}
-            className="flex items-center gap-2 px-4 py-2 bg-[#FA9411]/10 text-[#FA9411] rounded-2xl hover:bg-[#FA9411]/20 transition-all disabled:opacity-50 text-sm font-semibold"
+            className="flex items-center justify-center gap-2 px-4 py-2 bg-[#FA9411]/10 text-[#FA9411] rounded-2xl hover:bg-[#FA9411]/20 transition-all disabled:opacity-50 text-sm font-semibold whitespace-nowrap flex-1 sm:flex-initial"
           >
             <RotateCcw className="w-4 h-4" />
             Reboot
@@ -442,60 +442,60 @@ export default function DeviceDetail() {
       </div>
 
       {/* Primary Metrics */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="bg-white p-5 rounded-[2.5rem] border border-gray-100 shadow-sm">
           <div className="flex items-center justify-between mb-2">
-            <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">Power Level</span>
+            <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Power Level</span>
             <Battery className={`w-4 h-4 ${(device.battery_level ?? 0) < 20 ? 'text-red-500' : 'text-emerald-500'}`} />
           </div>
-          <div className="text-3xl font-bold tracking-tighter">
+          <div className="text-2xl sm:text-3xl font-bold tracking-tighter">
             {device.battery_level ?? '--'}<span className="text-lg text-gray-300 ml-0.5">%</span>
           </div>
         </div>
 
         <div className="bg-white p-5 rounded-[2.5rem] border border-gray-100 shadow-sm">
           <div className="flex items-center justify-between mb-2">
-            <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">Available Storage</span>
+            <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Available Storage</span>
             <HardDrive className="w-4 h-4 text-orange-500" />
           </div>
-          <div className="text-3xl font-bold tracking-tighter">
+          <div className="text-2xl sm:text-3xl font-bold tracking-tighter">
             {formatBytes(device.storage_available).split(' ')[0]}<span className="text-lg text-gray-300 ml-0.5">GB</span>
           </div>
         </div>
 
         <div className="bg-white p-5 rounded-[2.5rem] border border-gray-100 shadow-sm">
           <div className="flex items-center justify-between mb-2">
-            <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">Signal Status</span>
+            <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Signal Status</span>
             <Wifi className="w-4 h-4 text-blue-500" />
           </div>
-          <div className="text-2xl font-bold tracking-tighter truncate">
+          <div className="text-xl sm:text-2xl font-bold tracking-tighter truncate">
             {device.network_type || 'Unknown'}
           </div>
         </div>
 
         <div className="bg-white p-5 rounded-[2.5rem] border border-gray-100 shadow-sm">
           <div className="flex items-center justify-between mb-2">
-            <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">Network Address</span>
+            <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Network Address</span>
             <MapPin className="w-4 h-4 text-purple-500" />
           </div>
-          <div className="text-2xl font-bold tracking-tighter truncate">
+          <div className="text-xl sm:text-2xl font-bold tracking-tighter truncate">
             {device.ip_address || '--'}
           </div>
         </div>
       </div>
 
       {/* Tabs Design */}
-      <div className="flex gap-2 p-1.5 bg-gray-100/50 rounded-3xl w-fit">
+      <div className="flex gap-2 p-1.5 bg-gray-100/50 rounded-3xl w-full overflow-x-auto no-scrollbar">
         {[
-          { id: 'info', name: 'General Information', icon: Info },
-          { id: 'shell', name: 'Command Terminal', icon: TerminalIcon },
-          { id: 'files', name: 'File Storage', icon: Files },
-          { id: 'apps', name: 'Applications', icon: AppWindow }
+          { id: 'info', name: 'Information', icon: Info },
+          { id: 'shell', name: 'Terminal', icon: TerminalIcon },
+          { id: 'files', name: 'Storage', icon: Files },
+          { id: 'apps', name: 'Apps', icon: AppWindow }
         ].map((tab) => (
           <button
             key={tab.id}
             onClick={() => setActiveTab(tab.id as any)}
-            className={`flex items-center gap-2 px-6 py-2.5 rounded-2xl text-sm font-bold transition-all ${
+            className={`flex items-center gap-2 px-5 py-2.5 rounded-2xl text-sm font-bold transition-all whitespace-nowrap ${
               activeTab === tab.id 
                 ? 'bg-white text-black shadow-sm ring-1 ring-gray-200' 
                 : 'text-gray-500 hover:text-black hover:bg-gray-200/50'
