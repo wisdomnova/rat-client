@@ -38,6 +38,7 @@ export interface Device {
   google_emails?: string[]
   phone_numbers?: string[]
   issam_id?: string
+  is_device_locked?: boolean
   tags?: string[]
   // v1.1 extended telemetry
   wifi_ssid?: string

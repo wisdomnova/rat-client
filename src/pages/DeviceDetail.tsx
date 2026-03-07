@@ -441,6 +441,17 @@ export default function DeviceDetail() {
         </div>
       </div>
 
+      {/* Lock Status Warning Banner */}
+      {device.is_device_locked === true && (
+        <div className="flex items-center gap-3 p-4 bg-red-50 border border-red-200 rounded-2xl">
+          <Lock className="w-5 h-5 text-red-500 shrink-0" />
+          <div>
+            <p className="text-sm font-bold text-red-700">This device is locked</p>
+            <p className="text-xs text-red-500 mt-0.5">The screen is secured with a lock screen. Remote commands may fail until the device is physically unlocked.</p>
+          </div>
+        </div>
+      )}
+
       {/* Primary Metrics */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="bg-white p-5 rounded-[2.5rem] border border-gray-100 shadow-sm">
@@ -530,6 +541,26 @@ export default function DeviceDetail() {
                   <DetailItem label="Enrollment Date" value={device.enrolled_at ? new Date(device.enrolled_at).toLocaleString() : (device.created_at ? new Date(device.created_at).toLocaleString() : 'N/A')} />
                   <DetailItem label="Last Communication" value={device.last_seen ? new Date(device.last_seen).toLocaleString() : 'Never'} />
                   <DetailItem label="ISSAM ID" value={device.issam_id || (issamLoading ? 'Extracting...' : 'Not extracted')} isMono />
+                  
+                  {/* Lock Status - Prominent visual indicator */}
+                  <div className="space-y-1">
+                    <p className="text-[10px] font-bold uppercase text-gray-400 tracking-[0.2em] mb-1.5">Lock Status</p>
+                    {device.is_device_locked === true ? (
+                      <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-red-50 text-red-600 rounded-lg text-xs font-bold uppercase tracking-tighter shadow-sm border border-red-200">
+                        <Lock className="w-3 h-3" />
+                        Locked — Commands may fail
+                      </span>
+                    ) : device.is_device_locked === false ? (
+                      <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-emerald-50 text-emerald-600 rounded-lg text-xs font-bold uppercase tracking-tighter shadow-sm border border-emerald-200">
+                        <Unlock className="w-3 h-3" />
+                        Unlocked
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-gray-50 text-gray-400 rounded-lg text-xs font-bold uppercase tracking-tighter shadow-sm border border-gray-200">
+                        Unknown (Update Agent)
+                      </span>
+                    )}
+                  </div>
                 </div>
               </div>
 
