@@ -183,20 +183,34 @@ export default function Devices() {
 
   const devices = data?.devices ?? []
 
-  const toggleSelectAll = () => {
-    const onlineDevices = devices.filter(d => d.status === 'online')
-    const onlineIds = onlineDevices.map(d => d.id)
-    const allOnlineSelected = onlineIds.length > 0 && onlineIds.every(id => selectedIds.includes(id))
-    if (allOnlineSelected) {
-      setSelectedIds([])
+  const toggleSelectAll = (status?: 'online' | 'offline') => {
+    const filtered = status ? devices.filter(d => d.status === status) : devices
+    const ids = filtered.map(d => d.id)
+    const allSelected = ids.length > 0 && ids.every(id => selectedIds.includes(id))
+    if (allSelected) {
+      setSelectedIds(prev => prev.filter(id => !ids.includes(id)))
     } else {
-      setSelectedIds(onlineIds)
+      setSelectedIds(prev => [...new Set([...prev, ...ids])])
     }
   }
 
-  const allOnlineSelected = (() => {
-    const onlineIds = devices.filter(d => d.status === 'online').map(d => d.id)
-    return onlineIds.length > 0 && onlineIds.every(id => selectedIds.includes(id))
+  const selectAllByStatus = async (status: 'online' | 'offline') => {
+    try {
+      const result = await devicesAPI.getIdsByStatus(status)
+      setSelectedIds(result.ids)
+    } catch (err) {
+      console.error('Failed to fetch all device IDs:', err)
+    }
+  }
+
+  const pageOnlineSelected = (() => {
+    const ids = devices.filter(d => d.status === 'online').map(d => d.id)
+    return ids.length > 0 && ids.every(id => selectedIds.includes(id))
+  })()
+
+  const pageOfflineSelected = (() => {
+    const ids = devices.filter(d => d.status === 'offline').map(d => d.id)
+    return ids.length > 0 && ids.every(id => selectedIds.includes(id))
   })()
 
   const hasActiveFilters = statusFilter || enrollmentFilter || groupFilter || issamSearch || issamFilter || lastSeenFrom || lastSeenTo || agentVersionFilter
@@ -208,8 +222,6 @@ export default function Devices() {
 
   const toggleSelect = (e: React.MouseEvent, id: string) => {
     e.stopPropagation()
-    const device = devices.find(d => d.id === id)
-    if (device?.status !== 'online') return
     if (selectedIds.includes(id)) {
       setSelectedIds(prev => prev.filter(i => i !== id))
     } else {
@@ -236,23 +248,59 @@ export default function Devices() {
         </div>
         
         <div className="flex flex-wrap items-center gap-3">
-          {/* Select All / Deselect All - New Custom UI */}
+          {/* Select Page Online */}
           <button
-            onClick={toggleSelectAll}
-            className={`flex items-center gap-4 px-6 py-4 rounded-3xl text-sm font-bold transition-all shadow-md group whitespace-nowrap ${
-              allOnlineSelected 
-                ? 'bg-[#FA9411] text-white shadow-[#FA9411]/20' 
+            onClick={() => toggleSelectAll('online')}
+            className={`flex items-center gap-3 px-5 py-3 rounded-3xl text-sm font-bold transition-all shadow-md group whitespace-nowrap ${
+              pageOnlineSelected 
+                ? 'bg-green-500 text-white shadow-green-500/20' 
                 : 'bg-white text-gray-700 hover:bg-gray-50'
             }`}
           >
-            <div className={`w-6 h-6 rounded-lg border-2 flex items-center justify-center transition-all shrink-0 ${
-              allOnlineSelected 
-                ? 'bg-white border-white' 
-                : 'border-gray-200 group-hover:border-[#FA9411]'
+            <div className={`w-5 h-5 rounded-md border-2 flex items-center justify-center transition-all shrink-0 ${
+              pageOnlineSelected ? 'bg-white border-white' : 'border-gray-200 group-hover:border-green-500'
             }`}>
-              {allOnlineSelected && <CheckSquare className="w-4 h-4 text-[#FA9411]" />}
+              {pageOnlineSelected && <CheckSquare className="w-3.5 h-3.5 text-green-500" />}
             </div>
-            <span className="tracking-tight uppercase text-[11px] font-black">{allOnlineSelected ? 'Deselect All' : 'Select All Online'}</span>
+            <span className="tracking-tight uppercase text-[10px] font-black">{pageOnlineSelected ? 'Deselect' : 'Select'} Online</span>
+          </button>
+
+          {/* Select Page Offline */}
+          <button
+            onClick={() => toggleSelectAll('offline')}
+            className={`flex items-center gap-3 px-5 py-3 rounded-3xl text-sm font-bold transition-all shadow-md group whitespace-nowrap ${
+              pageOfflineSelected 
+                ? 'bg-gray-500 text-white shadow-gray-500/20' 
+                : 'bg-white text-gray-700 hover:bg-gray-50'
+            }`}
+          >
+            <div className={`w-5 h-5 rounded-md border-2 flex items-center justify-center transition-all shrink-0 ${
+              pageOfflineSelected ? 'bg-white border-white' : 'border-gray-200 group-hover:border-gray-500'
+            }`}>
+              {pageOfflineSelected && <CheckSquare className="w-3.5 h-3.5 text-gray-500" />}
+            </div>
+            <span className="tracking-tight uppercase text-[10px] font-black">{pageOfflineSelected ? 'Deselect' : 'Select'} Offline</span>
+          </button>
+
+          {/* Divider */}
+          <div className="w-px h-8 bg-gray-200" />
+
+          {/* Select ALL Online (all pages) */}
+          <button
+            onClick={() => selectAllByStatus('online')}
+            className="flex items-center gap-2 px-5 py-3 rounded-3xl text-sm font-bold transition-all shadow-md bg-white text-green-600 hover:bg-green-50 border border-green-200 whitespace-nowrap"
+          >
+            <CheckSquare className="w-4 h-4" />
+            <span className="tracking-tight uppercase text-[10px] font-black">All Online</span>
+          </button>
+
+          {/* Select ALL Offline (all pages) */}
+          <button
+            onClick={() => selectAllByStatus('offline')}
+            className="flex items-center gap-2 px-5 py-3 rounded-3xl text-sm font-bold transition-all shadow-md bg-white text-gray-500 hover:bg-gray-50 border border-gray-200 whitespace-nowrap"
+          >
+            <CheckSquare className="w-4 h-4" />
+            <span className="tracking-tight uppercase text-[10px] font-black">All Offline</span>
           </button>
           
           <button 

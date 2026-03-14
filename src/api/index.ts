@@ -79,6 +79,10 @@ export const devicesAPI = {
     const response = await api.get('/devices/export', { responseType: 'text' })
     return response.data
   },
+  getIdsByStatus: async (status: string): Promise<{ ids: string[]; count: number }> => {
+    const response = await api.get<APIResponse<{ ids: string[]; count: number }>>('/devices/ids', { params: { status } })
+    return response.data.data!
+  },
 }
 
 // Commands API
