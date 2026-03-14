@@ -109,6 +109,7 @@ export default function Devices() {
 
   const [selectedIds, setSelectedIds] = useState<string[]>([])
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null)
+  const [bulkDeleteConfirm, setBulkDeleteConfirm] = useState(false)
   const [appHiddenBulk, setAppHiddenBulk] = useState(false)
   const pageSize = 20
 
@@ -157,6 +158,21 @@ export default function Devices() {
   const deleteMutation = useMutation({
     mutationFn: (id: string) => devicesAPI.delete(id),
     onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['devices'] })
+      queryClient.invalidateQueries({ queryKey: ['enrollments'] })
+      queryClient.invalidateQueries({ queryKey: ['stats'] })
+    }
+  })
+
+  const bulkDeleteMutation = useMutation({
+    mutationFn: async (ids: string[]) => {
+      for (const id of ids) {
+        await devicesAPI.delete(id)
+      }
+    },
+    onSuccess: () => {
+      setSelectedIds([])
+      setBulkDeleteConfirm(false)
       queryClient.invalidateQueries({ queryKey: ['devices'] })
       queryClient.invalidateQueries({ queryKey: ['enrollments'] })
       queryClient.invalidateQueries({ queryKey: ['stats'] })
@@ -674,6 +690,13 @@ export default function Devices() {
                   disabled={bulkMutation.isPending}
                   variant="danger"
                 />
+                <BulkActionBtn
+                  icon={Trash2}
+                  label="Delete"
+                  onClick={() => setBulkDeleteConfirm(true)}
+                  disabled={bulkDeleteMutation.isPending}
+                  variant="danger"
+                />
               </div>
             </div>
 
@@ -685,6 +708,49 @@ export default function Devices() {
             >
               <X className="w-6 h-6 group-hover:rotate-90 transition-transform duration-300" />
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* Bulk Delete Confirmation Modal */}
+      {bulkDeleteConfirm && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-[2.5rem] w-full max-w-sm p-8 animate-slide-up shadow-2xl">
+            <div className="flex items-center justify-between mb-6">
+              <div className="p-3 bg-red-50 rounded-2xl">
+                <Trash2 className="w-6 h-6 text-red-500" />
+              </div>
+              <button
+                onClick={() => setBulkDeleteConfirm(false)}
+                className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+              >
+                <X className="w-5 h-5 text-gray-400" />
+              </button>
+            </div>
+            <h2 className="text-xl font-bold text-gray-900 mb-2">Remove {selectedIds.length} Device{selectedIds.length > 1 ? 's' : ''}?</h2>
+            <p className="text-sm text-gray-500 leading-relaxed mb-8">
+              <span className="font-semibold text-gray-700">{selectedIds.length} device{selectedIds.length > 1 ? 's' : ''}</span> will be removed from the system 
+              and their setup link slots will be freed up for new devices.
+            </p>
+            <div className="flex gap-4">
+              <button
+                onClick={() => setBulkDeleteConfirm(false)}
+                className="flex-1 px-4 py-4 border border-gray-200 rounded-[1.5rem] font-bold text-gray-600 hover:bg-gray-50 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => bulkDeleteMutation.mutate(selectedIds)}
+                disabled={bulkDeleteMutation.isPending}
+                className="flex-1 px-4 py-4 bg-red-500 text-white rounded-[1.5rem] font-bold hover:bg-red-600 shadow-lg shadow-red-100 transition-all disabled:opacity-50 flex items-center justify-center"
+              >
+                {bulkDeleteMutation.isPending ? (
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                ) : (
+                  'Yes, Remove'
+                )}
+              </button>
+            </div>
           </div>
         </div>
       )}
