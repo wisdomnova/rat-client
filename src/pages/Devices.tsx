@@ -24,7 +24,8 @@ import {
   Square,
   XCircle,
   Calendar,
-  Fingerprint
+  Fingerprint,
+  Shield
 } from 'lucide-react'
 
 const getTimeAgo = (date: string | null): string => {
@@ -52,7 +53,7 @@ export default function Devices() {
   // On first mount: if URL has no filter params, restore from sessionStorage
   const [initialized, setInitialized] = useState(false)
   useEffect(() => {
-    const hasUrlFilters = searchParams.has('q') || searchParams.has('status') || searchParams.has('enrollment') || searchParams.has('group') || searchParams.has('page') || searchParams.has('issam_search') || searchParams.has('issam_filter') || searchParams.has('last_seen_from') || searchParams.has('last_seen_to')
+    const hasUrlFilters = searchParams.has('q') || searchParams.has('status') || searchParams.has('enrollment') || searchParams.has('group') || searchParams.has('page') || searchParams.has('issam_search') || searchParams.has('issam_filter') || searchParams.has('last_seen_from') || searchParams.has('last_seen_to') || searchParams.has('agent_version')
     if (!hasUrlFilters) {
       const saved = sessionStorage.getItem('devices_filters')
       if (saved) {
@@ -78,6 +79,7 @@ export default function Devices() {
   const issamFilter = searchParams.get('issam_filter') || ''
   const lastSeenFrom = searchParams.get('last_seen_from') || ''
   const lastSeenTo = searchParams.get('last_seen_to') || ''
+  const agentVersionFilter = searchParams.get('agent_version') || ''
 
   // Persist to sessionStorage whenever URL params change
   useEffect(() => {
@@ -111,7 +113,7 @@ export default function Devices() {
   const pageSize = 20
 
   const { data, isLoading } = useQuery({
-    queryKey: ['devices', page, search, statusFilter, enrollmentFilter, groupFilter, issamSearch, issamFilter, lastSeenFrom, lastSeenTo],
+    queryKey: ['devices', page, search, statusFilter, enrollmentFilter, groupFilter, issamSearch, issamFilter, lastSeenFrom, lastSeenTo, agentVersionFilter],
     queryFn: () => devicesAPI.list({ 
       page, 
       page_size: pageSize, 
@@ -123,6 +125,7 @@ export default function Devices() {
       issam_filter: issamFilter || undefined,
       last_seen_from: lastSeenFrom ? new Date(lastSeenFrom + 'T00:00:00').toISOString() : undefined,
       last_seen_to: lastSeenTo ? new Date(lastSeenTo + 'T23:59:59').toISOString() : undefined,
+      agent_version: agentVersionFilter || undefined,
     }),
     refetchInterval: 30000,
   })
@@ -196,11 +199,11 @@ export default function Devices() {
     return onlineIds.length > 0 && onlineIds.every(id => selectedIds.includes(id))
   })()
 
-  const hasActiveFilters = statusFilter || enrollmentFilter || groupFilter || issamSearch || issamFilter || lastSeenFrom || lastSeenTo
+  const hasActiveFilters = statusFilter || enrollmentFilter || groupFilter || issamSearch || issamFilter || lastSeenFrom || lastSeenTo || agentVersionFilter
 
   const clearAllFilters = () => {
     sessionStorage.removeItem('devices_filters')
-    updateParams({ status: '', enrollment: '', group: '', page: '', q: '', issam_search: '', issam_filter: '', last_seen_from: '', last_seen_to: '' })
+    updateParams({ status: '', enrollment: '', group: '', page: '', q: '', issam_search: '', issam_filter: '', last_seen_from: '', last_seen_to: '', agent_version: '' })
   }
 
   const toggleSelect = (e: React.MouseEvent, id: string) => {
@@ -339,6 +342,25 @@ export default function Devices() {
             </select>
           </div>
 
+          {/* Agent Version Filter */}
+          <div className="flex flex-col px-4 border-r border-gray-100 min-w-[120px]">
+            <span className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-1">MDM Version</span>
+            <select
+              value={agentVersionFilter}
+              onChange={(e) => updateParams({ agent_version: e.target.value, page: '' })}
+              className={`bg-transparent text-sm font-bold appearance-none cursor-pointer focus:outline-none ${agentVersionFilter ? 'text-[#FA9411]' : 'text-gray-900'}`}
+            >
+              <option value="">All Versions</option>
+              {(() => {
+                const versions = [...new Set(devices.map(d => d.agent_version).filter(Boolean))] as string[]
+                versions.sort((a, b) => b.localeCompare(a, undefined, { numeric: true }))
+                return versions.map(v => (
+                  <option key={v} value={v}>v{v}</option>
+                ))
+              })()}
+            </select>
+          </div>
+
           {/* Clear All Filters */}
           {hasActiveFilters && (
             <button
@@ -452,7 +474,7 @@ export default function Devices() {
                 </div>
 
                 {/* ISSAM ID Badge */}
-                <div className="mt-3">
+                <div className="mt-3 flex flex-col gap-2">
                   <div className={`flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-bold ${
                     device.issam_id 
                       ? 'bg-green-50 text-green-700' 
@@ -460,6 +482,14 @@ export default function Devices() {
                   }`}>
                     <Fingerprint className="w-3.5 h-3.5 shrink-0" />
                     <span className="truncate">{device.issam_id || 'No ISSAM ID'}</span>
+                  </div>
+                  <div className={`flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-bold ${
+                    device.agent_version 
+                      ? 'bg-blue-50 text-blue-700' 
+                      : 'bg-red-50 text-red-500'
+                  }`}>
+                    <Shield className="w-3.5 h-3.5 shrink-0" />
+                    <span className="truncate">{device.agent_version ? `MDM v${device.agent_version}` : 'Unsupported MDM'}</span>
                   </div>
                 </div>
 
