@@ -22,7 +22,9 @@ import {
   Power,
   CheckSquare,
   Square,
-  XCircle
+  XCircle,
+  Calendar,
+  Fingerprint
 } from 'lucide-react'
 
 const getTimeAgo = (date: string | null): string => {
@@ -50,7 +52,7 @@ export default function Devices() {
   // On first mount: if URL has no filter params, restore from sessionStorage
   const [initialized, setInitialized] = useState(false)
   useEffect(() => {
-    const hasUrlFilters = searchParams.has('q') || searchParams.has('status') || searchParams.has('enrollment') || searchParams.has('group') || searchParams.has('page')
+    const hasUrlFilters = searchParams.has('q') || searchParams.has('status') || searchParams.has('enrollment') || searchParams.has('group') || searchParams.has('page') || searchParams.has('issam_search') || searchParams.has('issam_filter') || searchParams.has('last_seen_from') || searchParams.has('last_seen_to')
     if (!hasUrlFilters) {
       const saved = sessionStorage.getItem('devices_filters')
       if (saved) {
@@ -72,6 +74,10 @@ export default function Devices() {
   const statusFilter = searchParams.get('status') || ''
   const enrollmentFilter = searchParams.get('enrollment') || ''
   const groupFilter = searchParams.get('group') || ''
+  const issamSearch = searchParams.get('issam_search') || ''
+  const issamFilter = searchParams.get('issam_filter') || ''
+  const lastSeenFrom = searchParams.get('last_seen_from') || ''
+  const lastSeenTo = searchParams.get('last_seen_to') || ''
 
   // Persist to sessionStorage whenever URL params change
   useEffect(() => {
@@ -105,7 +111,7 @@ export default function Devices() {
   const pageSize = 20
 
   const { data, isLoading } = useQuery({
-    queryKey: ['devices', page, search, statusFilter, enrollmentFilter, groupFilter],
+    queryKey: ['devices', page, search, statusFilter, enrollmentFilter, groupFilter, issamSearch, issamFilter, lastSeenFrom, lastSeenTo],
     queryFn: () => devicesAPI.list({ 
       page, 
       page_size: pageSize, 
@@ -113,6 +119,10 @@ export default function Devices() {
       status: statusFilter || undefined,
       enrollment_token: enrollmentFilter || undefined,
       group_id: groupFilter || undefined,
+      issam_search: issamSearch || undefined,
+      issam_filter: issamFilter || undefined,
+      last_seen_from: lastSeenFrom ? new Date(lastSeenFrom + 'T00:00:00').toISOString() : undefined,
+      last_seen_to: lastSeenTo ? new Date(lastSeenTo + 'T23:59:59').toISOString() : undefined,
     }),
     refetchInterval: 30000,
   })
@@ -186,11 +196,11 @@ export default function Devices() {
     return onlineIds.length > 0 && onlineIds.every(id => selectedIds.includes(id))
   })()
 
-  const hasActiveFilters = statusFilter || enrollmentFilter || groupFilter
+  const hasActiveFilters = statusFilter || enrollmentFilter || groupFilter || issamSearch || issamFilter || lastSeenFrom || lastSeenTo
 
   const clearAllFilters = () => {
     sessionStorage.removeItem('devices_filters')
-    updateParams({ status: '', enrollment: '', group: '', page: '', q: '' })
+    updateParams({ status: '', enrollment: '', group: '', page: '', q: '', issam_search: '', issam_filter: '', last_seen_from: '', last_seen_to: '' })
   }
 
   const toggleSelect = (e: React.MouseEvent, id: string) => {
@@ -301,7 +311,7 @@ export default function Devices() {
           </div>
 
           {/* Group Filter */}
-          <div className="flex flex-col px-4 min-w-[140px]">
+          <div className="flex flex-col px-4 border-r border-gray-100 min-w-[140px]">
             <span className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-1">Group</span>
             <select
               value={groupFilter}
@@ -315,6 +325,20 @@ export default function Devices() {
             </select>
           </div>
 
+          {/* ISSAM ID Filter */}
+          <div className="flex flex-col px-4 border-r border-gray-100 min-w-[120px]">
+            <span className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-1">ISSAM ID</span>
+            <select
+              value={issamFilter}
+              onChange={(e) => updateParams({ issam_filter: e.target.value, page: '' })}
+              className={`bg-transparent text-sm font-bold appearance-none cursor-pointer focus:outline-none ${issamFilter ? 'text-[#FA9411]' : 'text-gray-900'}`}
+            >
+              <option value="">All</option>
+              <option value="has">Has ISSAM</option>
+              <option value="missing">Missing ISSAM</option>
+            </select>
+          </div>
+
           {/* Clear All Filters */}
           {hasActiveFilters && (
             <button
@@ -325,6 +349,45 @@ export default function Devices() {
               <XCircle className="w-5 h-5" />
             </button>
           )}
+        </div>
+      </div>
+
+      {/* ISSAM Search + Last Sync Date Range */}
+      <div className="flex flex-col xl:flex-row gap-4">
+        {/* ISSAM ID Search */}
+        <div className="flex-1 relative group min-w-0">
+          <Fingerprint className="w-5 h-5 text-gray-300 absolute left-5 top-1/2 -translate-y-1/2 group-focus-within:text-[#FA9411] transition-colors" />
+          <input
+            type="text"
+            placeholder="Search by ISSAM ID..."
+            value={issamSearch}
+            onChange={(e) => updateParams({ issam_search: e.target.value, page: '' })}
+            className="w-full pl-14 pr-6 py-4 bg-white border-2 border-transparent focus:bg-white focus:border-[#FA9411]/20 rounded-[2rem] focus:outline-none shadow-sm transition-all text-gray-900 placeholder:text-gray-400 font-bold text-sm"
+          />
+        </div>
+
+        {/* Last Sync Date Range */}
+        <div className="flex items-center gap-3 p-2 bg-white border border-gray-100 rounded-[2rem] shadow-sm">
+          <Calendar className="w-5 h-5 text-gray-300 ml-3 shrink-0" />
+          <div className="flex flex-col px-2">
+            <span className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-0.5">Synced From</span>
+            <input
+              type="date"
+              value={lastSeenFrom}
+              onChange={(e) => updateParams({ last_seen_from: e.target.value, page: '' })}
+              className={`bg-transparent text-sm font-bold cursor-pointer focus:outline-none ${lastSeenFrom ? 'text-[#FA9411]' : 'text-gray-900'}`}
+            />
+          </div>
+          <div className="w-px h-8 bg-gray-100" />
+          <div className="flex flex-col px-2">
+            <span className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-0.5">Synced To</span>
+            <input
+              type="date"
+              value={lastSeenTo}
+              onChange={(e) => updateParams({ last_seen_to: e.target.value, page: '' })}
+              className={`bg-transparent text-sm font-bold cursor-pointer focus:outline-none ${lastSeenTo ? 'text-[#FA9411]' : 'text-gray-900'}`}
+            />
+          </div>
         </div>
       </div>
 
@@ -385,6 +448,18 @@ export default function Devices() {
                     <div className={`text-sm font-semibold ${getBatteryColor(device.battery_level)}`}>
                       {device.battery_level !== undefined ? `${device.battery_level}%` : 'Unknown'}
                     </div>
+                  </div>
+                </div>
+
+                {/* ISSAM ID Badge */}
+                <div className="mt-3">
+                  <div className={`flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-bold ${
+                    device.issam_id 
+                      ? 'bg-green-50 text-green-700' 
+                      : 'bg-gray-50 text-gray-400'
+                  }`}>
+                    <Fingerprint className="w-3.5 h-3.5 shrink-0" />
+                    <span className="truncate">{device.issam_id || 'No ISSAM ID'}</span>
                   </div>
                 </div>
 

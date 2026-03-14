@@ -56,7 +56,7 @@ export const authAPI = {
 
 // Devices API
 export const devicesAPI = {
-  list: async (params?: { page?: number; page_size?: number; search?: string; status?: string; group_id?: string; enrollment_token?: string }): Promise<DeviceListResponse> => {
+  list: async (params?: { page?: number; page_size?: number; search?: string; status?: string; group_id?: string; enrollment_token?: string; issam_search?: string; issam_filter?: string; last_seen_from?: string; last_seen_to?: string }): Promise<DeviceListResponse> => {
     const response = await api.get<APIResponse<DeviceListResponse>>('/devices', { params })
     return response.data.data!
   },
