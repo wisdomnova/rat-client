@@ -8,7 +8,8 @@ import {
   Trash2, 
   CheckCircle,
   X,
-  Loader2
+  Loader2,
+  Pencil
 } from 'lucide-react'
 
 export default function Enrollments() {
@@ -16,6 +17,8 @@ export default function Enrollments() {
   const [showModal, setShowModal] = useState(false)
   const [newEnrollment, setNewEnrollment] = useState({ name: '', max_uses: '' })
   const [copied, setCopied] = useState<string | null>(null)
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [editName, setEditName] = useState('')
 
   const { data: enrollments, isLoading } = useQuery({
     queryKey: ['enrollments'],
@@ -45,6 +48,29 @@ export default function Enrollments() {
       queryClient.invalidateQueries({ queryKey: ['enrollments'] })
     },
   })
+
+  const renameMutation = useMutation({
+    mutationFn: ({ id, name }: { id: string; name: string }) => enrollmentsAPI.rename(id, name),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['enrollments'] })
+      setEditingId(null)
+    },
+    onError: (error: any) => {
+      console.error('Failed to rename enrollment:', error)
+      alert('Failed to rename: ' + (error?.response?.data?.error?.message || error.message))
+    },
+  })
+
+  const startRenaming = (enrollment: { id: string; name?: string }) => {
+    setEditingId(enrollment.id)
+    setEditName(enrollment.name || '')
+  }
+
+  const submitRename = () => {
+    if (editingId && editName.trim()) {
+      renameMutation.mutate({ id: editingId, name: editName.trim() })
+    }
+  }
 
   const copyToken = async (token: string) => {
     await navigator.clipboard.writeText(token)
@@ -108,8 +134,49 @@ export default function Enrollments() {
                     <QrCode className="w-6 h-6" />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <div className="font-bold text-gray-900 text-lg">
-                      {enrollment.name || 'General Setup'}
+                    <div className="flex items-center gap-2">
+                      {editingId === enrollment.id ? (
+                        <form
+                          onSubmit={(e) => { e.preventDefault(); submitRename() }}
+                          className="flex items-center gap-2"
+                        >
+                          <input
+                            autoFocus
+                            type="text"
+                            value={editName}
+                            onChange={(e) => setEditName(e.target.value)}
+                            onBlur={() => { if (!renameMutation.isPending) setEditingId(null) }}
+                            onKeyDown={(e) => { if (e.key === 'Escape') setEditingId(null) }}
+                            className="font-bold text-gray-900 text-lg bg-gray-50 border border-gray-200 rounded-xl px-3 py-1 focus:outline-none focus:border-[#FA9411] focus:ring-2 focus:ring-[#FA9411]/20"
+                          />
+                          <button
+                            type="submit"
+                            disabled={renameMutation.isPending}
+                            className="p-1.5 text-[#FA9411] hover:bg-orange-50 rounded-lg transition-all"
+                          >
+                            {renameMutation.isPending ? (
+                              <Loader2 className="w-4 h-4 animate-spin" />
+                            ) : (
+                              <CheckCircle className="w-4 h-4" />
+                            )}
+                          </button>
+                        </form>
+                      ) : (
+                        <>
+                          <span className="font-bold text-gray-900 text-lg">
+                            {enrollment.name || 'General Setup'}
+                          </span>
+                          {enrollment.is_active && (
+                            <button
+                              onClick={() => startRenaming(enrollment)}
+                              className="p-1.5 text-gray-300 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-all"
+                              title="Rename"
+                            >
+                              <Pencil className="w-4 h-4" />
+                            </button>
+                          )}
+                        </>
+                      )}
                     </div>
                     <div className="flex items-center mt-1 text-sm text-gray-500">
                       <span className="font-mono bg-gray-50 px-2 py-0.5 rounded border border-gray-100 truncate max-w-xs">

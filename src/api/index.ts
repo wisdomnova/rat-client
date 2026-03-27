@@ -220,6 +220,9 @@ export const enrollmentsAPI = {
   deactivate: async (id: string): Promise<void> => {
     await api.delete(`/enrollments/${id}`)
   },
+  rename: async (id: string, name: string): Promise<void> => {
+    await api.put(`/enrollments/${id}/rename`, { name })
+  },
 }
 
 // Groups API
