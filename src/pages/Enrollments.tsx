@@ -145,12 +145,13 @@ export default function Enrollments() {
                             type="text"
                             value={editName}
                             onChange={(e) => setEditName(e.target.value)}
-                            onBlur={() => { if (!renameMutation.isPending) setEditingId(null) }}
-                            onKeyDown={(e) => { if (e.key === 'Escape') setEditingId(null) }}
+                            onBlur={() => submitRename()}
+                            onKeyDown={(e) => { if (e.key === 'Escape') { setEditingId(null) } }}
                             className="font-bold text-gray-900 text-lg bg-gray-50 border border-gray-200 rounded-xl px-3 py-1 focus:outline-none focus:border-[#FA9411] focus:ring-2 focus:ring-[#FA9411]/20"
                           />
                           <button
                             type="submit"
+                            onMouseDown={(e) => e.preventDefault()}
                             disabled={renameMutation.isPending}
                             className="p-1.5 text-[#FA9411] hover:bg-orange-50 rounded-lg transition-all"
                           >
